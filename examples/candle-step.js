@@ -24,9 +24,9 @@
   var O = {};
   /* 备料区：所有器材一开始就摆在桌上，用到时再移过去 */
   var HOME = {
-    probe: [2.2, .34, 5.2],
-    stick: [-3.0, .30, 5.4],
-    hood:  [11.6, .05, 4.6]
+    stick: [-4.6, .30, 7.0],   /* 前排左 */
+    probe: [.4, .26, 7.4],     /* 前排中 */
+    hood:  [8.8, .05, 5.4]     /* 右前（不挡蜡烛与试管） */
   };
 
   /* ── 模型：火焰温度按高度分层（真实蜡烛：外焰≈1000℃ > 内焰≈820℃ > 焰心≈480℃） ── */
@@ -96,25 +96,38 @@
       O.flameMain = K.flame({
         x: CX, y: .35 + WAX_H + .45, z: CZ, s: 3.0, tex: 'candle', light: 1.6, blend: 'normal'
       });
+      O.flameMain.sp.renderOrder = 6;   /* 画在烧杯壁和雾层之后：火焰透过玻璃仍可见 */
       O.flameMain.lit = false;
       O.flameMain.lv = 0;
 
-      /* ═══ 温度探针（细杆 + 感温珠） ═══ */
+      /* ═══ 温度探针：细拉丝钢杆 + 陶瓷绝缘环 + 银灰感应珠 + 短手柄 ═══ */
       O.probeGrp = new T.Group();
-      var rod = new T.Mesh(new T.CylinderGeometry(.07, .07, 5.2, 10), MAT.steel);
+      var steelFine = new T.MeshStandardMaterial({ color: 0xc7ced6, roughness: .22, metalness: .95, envMapIntensity: 1.4 });
+      var rod = new T.Mesh(new T.CylinderGeometry(.045, .045, 6.0, 10), steelFine);
       rod.rotation.z = Math.PI / 2;
-      rod.position.x = 2.8;
+      rod.position.x = 3.0;
       O.probeGrp.add(rod);
-      /* 手柄（露在火焰外的把手，让"人手拿着"这件事读得出来） */
-      var grip = new T.Mesh(new T.CylinderGeometry(.18, .18, 1.2, 12),
-        new T.MeshStandardMaterial({ color: 0x3d4650, roughness: .7 }));
-      grip.rotation.z = Math.PI / 2;
-      grip.position.x = 4.6;
-      O.probeGrp.add(grip);
-      O.bead = new T.Mesh(new T.SphereGeometry(.28, 14, 12),
-        new T.MeshStandardMaterial({ color: 0xd44a3a, roughness: .35, metalness: .3, emissive: 0x551008 }));
+      /* 陶瓷绝缘环（探针常见的白瓷件） */
+      var ceramic = new T.Mesh(new T.CylinderGeometry(.085, .085, .26, 12),
+        new T.MeshStandardMaterial({ color: 0xf2f5f8, roughness: .5, metalness: .05 }));
+      ceramic.rotation.z = Math.PI / 2;
+      ceramic.position.x = .30;
+      O.probeGrp.add(ceramic);
+      /* 感应珠：银灰金属小球（温度越高泛红） */
+      O.bead = new T.Mesh(new T.SphereGeometry(.17, 16, 14),
+        new T.MeshStandardMaterial({ color: 0xb9c2cb, roughness: .28, metalness: .85, envMapIntensity: 1.5 }));
       O.probeGrp.add(O.bead);
+      /* 手柄：短、深灰橡胶 + 末端圆头 */
+      var gripMat = new T.MeshStandardMaterial({ color: 0x39424c, roughness: .78, metalness: .05 });
+      var grip = new T.Mesh(new T.CylinderGeometry(.13, .13, .85, 14), gripMat);
+      grip.rotation.z = Math.PI / 2;
+      grip.position.x = 6.4;
+      O.probeGrp.add(grip);
+      var gripEnd = new T.Mesh(new T.SphereGeometry(.14, 12, 10), gripMat);
+      gripEnd.position.x = 6.85;
+      O.probeGrp.add(gripEnd);
       O.probeGrp.position.set(HOME.probe[0], HOME.probe[1], HOME.probe[2]);
+      O.probeGrp.rotation.y = Math.PI / 2;      /* 备料时杆朝镜头，不横穿其他器材 */
       O.probeGrp.visible = true;
       K.scene().add(O.probeGrp);
 
@@ -209,6 +222,27 @@
         O.smoke.push(sm);
       }
 
+      /* ═══ 火柴盒（静态道具，让"要用的东西一开始都在"这件事成立） ═══ */
+      var boxMat = new T.MeshStandardMaterial({ color: 0xe8e2d6, roughness: .82 });
+      var mBox = new T.Mesh(new T.BoxGeometry(1.9, .42, 1.2), boxMat);
+      mBox.position.set(-6.4, .28, 6.4);
+      K.scene().add(mBox);
+      var mLabel = new T.Mesh(new T.PlaneGeometry(1.7, 1.0),
+        new T.MeshBasicMaterial({ color: 0xc8442e }));
+      mLabel.rotation.x = -Math.PI / 2;
+      mLabel.position.set(-6.4, .50, 6.4);
+      K.scene().add(mLabel);
+      /* 一根红头火柴，斜靠在火柴盒上（"器材齐全"的细节） */
+      var mStick = new T.Mesh(new T.BoxGeometry(2.2, .1, .1), MAT.wood);
+      mStick.position.set(-5.2, .34, 7.0);
+      mStick.rotation.y = .5;
+      K.scene().add(mStick);
+      var mHead = new T.Mesh(new T.SphereGeometry(.13, 10, 8),
+        new T.MeshStandardMaterial({ color: 0xc0341f, roughness: .55 }));
+      mHead.position.set(-4.24, .34, 6.52);
+      mHead.scale.set(1, .9, .9);
+      K.scene().add(mHead);
+
       /* 接触阴影 */
       K.blob({ x: CX, z: CZ, r: 3.8 });
       K.blob({ x: TX, z: 0, r: 2.2 });
@@ -254,7 +288,7 @@
         HOME.probe[1] + (pUseY - HOME.probe[1]) * s.probeIn,
         HOME.probe[2] + (O.cz - HOME.probe[2]) * s.probeIn
       );
-      O.probeGrp.visible = s.probeIn > .02;
+      O.probeGrp.visible = true;   /* 备料区常驻可见 */
       var tempT = flameTemp(u);
       var heat = Math.max(0, tempT - 400) / 600;
       O.bead.material.emissiveIntensity = .2 + heat * 1.6;
@@ -269,7 +303,7 @@
         HOME.stick[1] + (sUseY - HOME.stick[1]) * s.stickIn,
         HOME.stick[2] + (O.cz + .9 - HOME.stick[2]) * s.stickIn
       );
-      O.stickGrp.visible = s.stickIn > .02;
+      O.stickGrp.visible = true;
       var charK = Math.min(1, s.burnT / 8);
       for (i = 0; i < O.charSegs.length; i++) {
         var cg = O.charSegs[i];
@@ -288,11 +322,11 @@
         HOME.hood[1] + (hUseY - HOME.hood[1]) * s.hoodIn,
         HOME.hood[2] + (O.cz - HOME.hood[2]) * s.hoodIn
       );
-      O.hoodGrp.visible = s.hoodIn > .02;
+      O.hoodGrp.visible = true;
       if (s.hoodIn > .85 && s.hood > .5) {
         var fogK = Math.min(1, s.burnT / 12);
         s.fog = fogK;
-        O.fogMesh.material.opacity = fogK * .85;
+        O.fogMesh.material.opacity = fogK * .55;
         for (i = 0; i < O.drops.length; i++) {
           O.drops[i].visible = fogK > .35;
           O.drops[i].material.opacity = .35 + fogK * .45;
@@ -346,7 +380,7 @@
     hint: '拖空白处旋转 · 滚轮缩放 · ←/→ 切换步骤',
     state: st,
     scene: scene,
-    cam: { ty: 8.2, dist: 40, tx: -1.4, yaw: .42, pitch: .17 },
+    cam: { ty: 9.6, dist: 48, tx: .4, yaw: .40, pitch: .24 },
 
     reads: [
       ['lit', '状态'],

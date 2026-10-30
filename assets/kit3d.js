@@ -616,7 +616,7 @@ K.glassCyl = function (o) {
   addFresnel(wall, 1.02);
   ringLine(g, x, z, y0 + h, r, .7);
   ringLine(g, x, z, y0 + .02, r, .5);
-  sideLines(g, x, z, y0, y0 + h, r, .42);
+  if (o.side === true) sideLines(g, x, z, y0, y0 + h, r, .4);   /* 默认不画竖母线：浅背景下它像假竖纹 */
   world.add(g);
   return g;
 };
