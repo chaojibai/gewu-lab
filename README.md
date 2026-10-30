@@ -25,9 +25,13 @@ three.js 学科仿真课件制作方法 —— 从玻璃/液体的渲染配方�
 
 ## 快速开始
 
+> ⚠️ **本仓库自带引擎**（`assets/kit3d.js` + `assets/vendor/three.min.js`）。
+> 只拷 `SKILL.md` 是不够的 —— `K.glassCyl` / `K.fadeShow` / `K.boot` 都在引擎里。
+> 装完请跑 `node scripts/selftest.js` 自检。详见 **[INSTALL.md](INSTALL.md)**。
+
 ### 1. 安装（WorkBuddy / 兼容 Agent）
 
-把整个目录复制到用户级技能目录：
+把整个目录复制到用户级技能目录（**目录名必须是 `threejs-lab-courseware`**）：
 
 ```bash
 # macOS / Linux
@@ -42,11 +46,13 @@ cp -r threejs-lab-courseware "$HOME/.workbuddy/skills/"
 ### 2. 依赖
 
 ```bash
-npm i playwright three@0.147.0
+node scripts/selftest.js    # 先自检（会告诉你缺什么）
+npm i playwright            # 可选：只有跑截图/检查脚本才需要
 ```
 
-- `three@0.147.0`：**只有 UMD 版能内联进单文件**（r160+ 移除了 UMD）
-- `playwright`：用于多机位截图、报错扫描、像素取样
+- **three**：仓库已内置 r147 UMD（`assets/vendor/three.min.js`）。**不要**用 `npm i three`——
+  新版移除了 UMD，内联会失败
+- **playwright**：多机位截图、报错扫描、像素取样
 
 ### 3. 验证脚本
 
@@ -69,7 +75,15 @@ threejs-lab-courseware/
 │   ├── render-recipes.md             # 材质参数表、环境贴图、液体着色器全文、交互代码
 │   ├── detail-rules.md               # 细节修改规则：小件三件套、刻度液面、断肢检查、反例库
 │   └── github-references.md          # 必查的开源参考（含铜匠实验室）与检索命令
+├── INSTALL.md                        # 接入指南（三种装法 + 六个"效果不好"的真实原因）
+├── assets/                           # ★ 引擎资产（缺了它什么都跑不起来）
+│   ├── kit3d.js                      # 引擎：玻璃/液体/器材/缓动/交互
+│   ├── page.html                     # 单文件模板（7 个占位符）
+│   ├── style.css                     # 面板样式
+│   ├── sim.js                        # 模型层（pH/气体/溶解等）
+│   └── vendor/three.min.js           # three r147 UMD（594KB，可内联）
 ├── scripts/
+│   ├── selftest.js                   # 安装自检（资产/API/占位符/端到端构建）
 │   ├── views.js                      # 六机位截图
 │   ├── check.js                      # 报错扫描
 │   ├── pick.js                       # 帧缓冲像素取样
