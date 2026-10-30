@@ -123,6 +123,99 @@ function buildMaterials() {
   return M;
 }
 
+/* 程序化火焰纹理：叶形裁剪 + 竖直多段色带（焰心/内焰/外焰）+ 亮核 + 边缘羽化
+   kind: 'candle'（蜡烛）| 'alcohol'（酒精灯）| 'burner'（喷灯，偏蓝锥） */
+var FLAME_TEX_CACHE = {};
+function makeFlameTex(kind) {
+  kind = kind || 'candle';
+  if (FLAME_TEX_CACHE[kind]) return FLAME_TEX_CACHE[kind];
+
+  var W = 256, H = 512;
+  var c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  var x = c.getContext('2d');
+  x.clearRect(0, 0, W, H);
+
+  /* 叶形轮廓：底宽、顶尖，两侧内收（蜡烛火的真实形状） */
+  function leafPath() {
+    x.beginPath();
+    x.moveTo(128, 16);
+    x.bezierCurveTo(196, 150, 232, 300, 152, 458);
+    x.bezierCurveTo(140, 474, 116, 474, 104, 458);
+    x.bezierCurveTo(24, 300, 60, 150, 128, 16);
+    x.closePath();
+  }
+
+  x.save();
+  leafPath();
+  x.clip();
+
+  /* 竖直色带：从底部焰心（蓝）→ 白黄 → 橙 → 顶端渐隐 */
+  var g = x.createLinearGradient(0, 470, 0, 20);
+  if (kind === 'alcohol') {
+    g.addColorStop(0, 'rgba(140,182,255,1)');
+    g.addColorStop(.16, 'rgba(190,222,255,1)');
+    g.addColorStop(.42, 'rgba(236,246,255,1)');
+    g.addColorStop(.68, 'rgba(186,208,250,1)');
+    g.addColorStop(.86, 'rgba(158,188,246,.6)');
+    g.addColorStop(1, 'rgba(150,182,240,0)');
+  } else if (kind === 'burner') {
+    g.addColorStop(0, 'rgba(120,170,255,.85)');
+    g.addColorStop(.28, 'rgba(170,210,255,.95)');
+    g.addColorStop(.6, 'rgba(210,235,255,.75)');
+    g.addColorStop(.85, 'rgba(180,210,255,.3)');
+    g.addColorStop(1, 'rgba(170,200,255,0)');
+  } else {
+    g.addColorStop(0, 'rgba(118,168,255,.60)');   /* 焰心：淡蓝（石蜡蒸气） */
+    g.addColorStop(.12, 'rgba(186,220,255,.80)');
+    g.addColorStop(.22, 'rgba(255,249,220,1)');   /* 内焰：白黄最亮 */
+    g.addColorStop(.45, 'rgba(255,214,120,.98)');
+    g.addColorStop(.70, 'rgba(255,150,55,.86)');  /* 外焰：橙 */
+    g.addColorStop(.88, 'rgba(255,112,28,.42)');
+    g.addColorStop(1, 'rgba(255,92,18,0)');
+  }
+  x.fillStyle = g;
+  x.fillRect(0, 0, W, H);
+
+  /* 亮核：偏下的一团白光（让火焰"有芯"） */
+  var core = x.createRadialGradient(128, 360, 8, 128, 360, kind === 'candle' ? 92 : 70);
+  core.addColorStop(0, kind === 'candle' ? 'rgba(255,255,246,.95)' : 'rgba(245,252,255,.9)');
+  core.addColorStop(.45, kind === 'candle' ? 'rgba(255,236,170,.55)' : 'rgba(210,235,255,.5)');
+  core.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = core;
+  x.fillRect(0, 0, W, H);
+
+  /* 紊流：极淡的横向扰动带，避免渐变过于"塑料" */
+  for (var i = 0; i < 26; i++) {
+    var yy = 60 + Math.random() * 380;
+    var rr = 10 + Math.random() * 26;
+    var gg = x.createRadialGradient(128 + (Math.random() - .5) * 60, yy, 1,
+      128 + (Math.random() - .5) * 60, yy, rr);
+    gg.addColorStop(0, 'rgba(255,255,255,.05)');
+    gg.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = gg;
+    x.fillRect(0, 0, W, H);
+  }
+  x.restore();
+
+  /* 边缘羽化：先复制整图，再用 blur 重绘（径向遮罩会把火焰顶部裁掉，实测翻车） */
+  var tmp = document.createElement('canvas');
+  tmp.width = W; tmp.height = H;
+  tmp.getContext('2d').drawImage(c, 0, 0);
+  x.clearRect(0, 0, W, H);
+  if (typeof x.filter === 'string') {
+    x.filter = 'blur(2.5px)';
+    x.drawImage(tmp, 0, 0);
+    x.filter = 'none';
+  } else {
+    x.drawImage(tmp, 0, 0);        /* 老浏览器不支持 filter，退回不羽化 */
+  }
+
+  var t = new T.CanvasTexture(c);
+  FLAME_TEX_CACHE[kind] = t;
+  return t;
+}
+
 function flameTexture() {
   var c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -423,8 +516,37 @@ function ringLine(parent, cx, cz, y, r, op) {
   (parent || world).add(l);
   return l;
 }
+/* 竖向柔和高光：用 additive 渐变面片替代硬母线（圆柱玻璃更真实） */
+function softStreak(parent, cx, cz, y0, y1, r, angle) {
+  var c = document.createElement('canvas');
+  c.width = 48; c.height = 128;
+  var x2 = c.getContext('2d');
+  x2.clearRect(0, 0, 48, 128);
+  var g1 = x2.createLinearGradient(0, 0, 48, 0);
+  g1.addColorStop(0, 'rgba(255,255,255,0)');
+  g1.addColorStop(.5, 'rgba(255,255,255,.85)');
+  g1.addColorStop(1, 'rgba(255,255,255,0)');
+  x2.fillStyle = g1; x2.fillRect(0, 0, 48, 128);
+  var g2 = x2.createLinearGradient(0, 0, 0, 128);
+  g2.addColorStop(0, 'rgba(255,255,255,0)');
+  g2.addColorStop(.25, 'rgba(255,255,255,1)');
+  g2.addColorStop(.75, 'rgba(255,255,255,1)');
+  g2.addColorStop(1, 'rgba(255,255,255,0)');
+  x2.globalCompositeOperation = 'destination-in';
+  x2.fillStyle = g2; x2.fillRect(0, 0, 48, 128);
+  var tex = new T.CanvasTexture(c);
+  var m = new T.Mesh(new T.PlaneGeometry(r * .5, y1 - y0),
+    new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false,
+      blending: T.AdditiveBlending, opacity: .45 }));
+  var a = angle === undefined ? -.72 : angle;
+  m.position.set(cx + Math.sin(a) * r * .99, (y0 + y1) / 2, cz + Math.cos(a) * r * .99);
+  m.rotation.y = a;
+  parent.add(m);
+  return m;
+}
+
 function sideLines(parent, cx, cz, y0, y1, r, op) {
-  var tone = lineTone(r, op === undefined ? .45 : op);
+  var tone = lineTone(r, op === undefined ? .16 : op);
   op = tone.op;
   var pts = [];
   pts.push(new T.Vector3(cx - r, y0, cz), new T.Vector3(cx - r, y1, cz));
@@ -831,8 +953,11 @@ K.blob = function (o) {
 /* 火焰（自动摇曳；obj.visible 控制明灭） */
 K.flame = function (o) {
   o = o || {};
-  var mat = new T.SpriteMaterial({ map: FLAME_TEX, transparent: true, depthWrite: false,
-    blending: T.AdditiveBlending, color: o.color || 0xffffff });
+  var tex = o.tex ? makeFlameTex(o.tex) : FLAME_TEX;
+  /* 浅背景必须用 NormalBlending：加法混合会把橙色叠到饱和变白（实测翻车点） */
+  var blend = (o.blend === 'normal') ? T.NormalBlending : T.AdditiveBlending;
+  var mat = new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false,
+    blending: blend, color: o.color || 0xffffff });
   var sp = new T.Sprite(mat);
   var s = o.s || 2;
   sp.scale.set(s * 1.4, s * 2.6, 1);
@@ -1476,8 +1601,10 @@ function updateFlames(dt) {
     f.lv = f.lv === undefined ? target : f.lv + (target - f.lv) * Math.min(1, dt * 4.5);
     if (Math.abs(target - f.lv) < .01) f.lv = target;
     var lv = f.lv;
-    f.sp.scale.set(f.base * 1.4 * flick * (.35 + .65 * lv), f.base * 2.6 * (2 - flick) * (.35 + .65 * lv), 1);
-    f.sp.material.opacity = lv * .95;
+    /* 保持纹理原始比例 1:1.86（原来乘 (2-flick) 会把火焰纵向拉长近一倍，色带被拉散） */
+    var grow = .45 + .55 * lv;
+    f.sp.scale.set(f.base * 1.4 * flick * grow, f.base * 2.6 * (2 - flick) * .62 * grow, 1);
+    f.sp.material.opacity = lv * .98;
     f.light.intensity = lv * .85 * flick;
     f.sp.visible = lv > .005;
   }
@@ -1506,6 +1633,7 @@ function loop(t) {
   updateTween(dt);
   if (cfg.scene && cfg.scene.update) cfg.scene.update(dt, state);
   updateRamps(dt);
+  K.updateMoves(dt);
   updateFlames(dt);
   updateLabelScale();
   updateCamera();
@@ -1600,6 +1728,41 @@ K.setLiquidLevel = function (mesh, h, y0) {
     m.uniforms.uTop.value = y0 + h;
   }
 };
+
+/* 器材入场动线：先摆在桌上，用到时移过去（替代"突然出现"）
+   K.moveTo(obj, [x,y,z], dur, opts)  —— 目标为本地/世界坐标（默认世界）
+   每帧由 loop 调 K.updateMoves(dt) 推进；完成回调 opts.onDone */
+K.moveTo = function (obj, to, dur, opts) {
+  if (!obj) return;
+  opts = opts || {};
+  var from = obj.position.clone();
+  var rec = { obj: obj, from: from, to: new T.Vector3(to[0], to[1], to[2]),
+    t: 0, dur: dur || .7, arc: opts.arc === undefined ? .35 : opts.arc,
+    onDone: opts.onDone || null, rotFrom: obj.rotation.z, rotTo: opts.rotZ === undefined ? obj.rotation.z : opts.rotZ };
+  if (!K._moves) K._moves = [];
+  for (var i = K._moves.length - 1; i >= 0; i--) { if (K._moves[i].obj === obj) K._moves.splice(i, 1); }
+  K._moves.push(rec);
+  obj.visible = true;
+};
+
+K.updateMoves = function (dt) {
+  if (!K._moves || !K._moves.length) return;
+  for (var i = K._moves.length - 1; i >= 0; i--) {
+    var r = K._moves[i];
+    r.t = Math.min(1, r.t + dt / r.dur);
+    var e = r.t < .5 ? 2 * r.t * r.t : -1 + (4 - 2 * r.t) * r.t;
+    r.obj.position.lerpVectors(r.from, r.to, e);
+    r.obj.position.y += Math.sin(Math.PI * e) * r.arc;   /* 轻微抬起，像"被拿过去" */
+    r.obj.rotation.z = r.rotFrom + (r.rotTo - r.rotFrom) * e;
+    if (r.t >= 1) {
+      r.obj.position.copy(r.to);
+      if (r.onDone) r.onDone();
+      K._moves.splice(i, 1);
+    }
+  }
+};
+K.flameTex = makeFlameTex;
+
 K.boot = boot;
 K.T = function () { return T; };
 K.scene = function () { return scene; };
