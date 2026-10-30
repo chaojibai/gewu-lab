@@ -176,3 +176,28 @@ function pickAt(ev) {
 }
 // 悬停：pointermove（节流 55ms）→ 显示 .lab-tip 气泡；点击（位移 <6px 才算点击）→ 相机缓动推到包围盒
 ```
+
+---
+
+## 几何火焰（不要再用贴图光斑）
+
+canvas 贴图做火焰只能得到"光斑"，剪影永远不对。最终形态是**三层嵌套的 Lathe 火舌**：
+
+```js
+function flameGeo(r, h) {          // 底宽顶尖、中段外鼓的火舌剖面
+  const pts = [];
+  for (let i = 0; i <= 22; i++) {
+    const t = i / 22;
+    const bulge = Math.sin(Math.PI * Math.pow(t, .72));
+    pts.push(new THREE.Vector2(Math.max(.01, r * (1 - t) * (.22 + .78 * bulge)), t * h));
+  }
+  return new THREE.LatheGeometry(pts, 20);
+}
+// 外焰(橙, .78) → 内焰(白黄, .92) → 焰心(淡蓝, .85)，renderOrder 递增
+```
+
+- 摇曳/呼吸用 `rotation.z = sin(t*2.6)*.06` + `scale.set(k,…)`，**不要写自定义 shader**
+- three r147 上自定义 ShaderMaterial 一旦编译失败（哪怕只是漏声明一个 uniform），
+  会中断渲染循环 → 场景"半渲染 + 大面积黑"，且控制台不一定报错
+- 4 维顶点色（RGBA color attribute）同理危险，用嵌套几何代替
+- 火焰的 `PointLight` 强度务必 `isFinite` 兜底（见 detail-rules 第十四节）

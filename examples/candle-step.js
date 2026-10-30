@@ -14,6 +14,7 @@
     smoke: 0,        /* 白烟强度 0..1 */
     gasIn: 0,        /* 气体是否通入石灰水 */
     probeIn: 0,      /* 探针从备料区移到火焰的进度 */
+    matchIn: 0,      /* 点燃用火柴的移动进度 */
     stickIn: 0,      /* 火柴梗移动进度 */
     hoodIn: 0,       /* 烧杯移动进度 */
     relit: 0,        /* 白烟是否被点燃 */
@@ -26,7 +27,8 @@
   var HOME = {
     stick: [-4.6, .30, 7.0],   /* 前排左 */
     probe: [.4, .26, 7.4],     /* 前排中 */
-    hood:  [8.8, .05, 5.4]     /* 右前（不挡蜡烛与试管） */
+    hood:  [8.8, .05, 5.4],    /* 右前（不挡蜡烛与试管） */
+    match: [-5.0, .42, 7.6]    /* 点燃用火柴：靠在火柴盒边 */
   };
 
   /* ── 模型：火焰温度按高度分层（真实蜡烛：外焰≈1000℃ > 内焰≈820℃ > 焰心≈480℃） ── */
@@ -45,7 +47,7 @@
   function reset(s) {
     s.lit = 0; s.stick = 0; s.hood = 0; s.fog = 0;
     s.turbid = 0; s.smoke = 0; s.relit = 0; s.gasIn = 0; s.probe = .55;
-    s.probeIn = 0; s.stickIn = 0; s.hoodIn = 0;
+    s.probeIn = 0; s.stickIn = 0; s.hoodIn = 0; s.matchIn = 0; s.matchUse = 0;
   }
 
   var scene = {
@@ -71,11 +73,11 @@
       K.bench(44, 28);
 
       /* ═══ 蜡烛：表面皿 + 蜡柱 + 蜡油 + 烛芯 ═══ */
-      var CX = -7.5, CZ = 0, WAX_R = 1.55, WAX_H = 7.0;
+      var CX = -7.5, CZ = 0, WAX_R = .92, WAX_H = 6.4;
       O.cx = CX; O.cz = CZ; O.waxR = WAX_R; O.waxH = WAX_H;
 
-      var dish = new T.Mesh(new T.CylinderGeometry(3.4, 3.4, .35, 36), MAT.dish);
-      dish.position.set(CX, .18, CZ);
+      var dish = new T.Mesh(new T.CylinderGeometry(2.5, 2.5, .3, 36), MAT.dish);
+      dish.position.set(CX, .15, CZ);
       K.scene().add(dish);
 
       O.wax = new T.Mesh(new T.CylinderGeometry(WAX_R, WAX_R * 1.04, WAX_H, 28), MAT.wax);
@@ -87,18 +89,28 @@
       O.waxLip.rotation.x = Math.PI / 2;
       O.waxLip.position.set(CX, .35 + WAX_H, CZ);
       K.scene().add(O.waxLip);
+      /* 蜡油流挂：贴着烛身下沿几条不规则的蜡痕 */
+      for (var wi = 0; wi < 5; wi++) {
+        var waxDrop = new T.Mesh(new T.SphereGeometry(.10 + Math.random() * .06, 10, 8),
+          MAT.wax);
+        var wa = wi / 5 * Math.PI * 2 + .4;
+        waxDrop.position.set(CX + Math.cos(wa) * WAX_R * .98,
+          .35 + WAX_H * (.24 + (wi % 3) * .12),
+          CZ + Math.sin(wa) * WAX_R * .98);
+        waxDrop.scale.set(.62, 1.5 + (wi % 2) * .6, .62);
+        K.scene().add(waxDrop);
+      }
       /* 烛芯 */
-      O.wick = new T.Mesh(new T.CylinderGeometry(.07, .09, .95, 8), MAT.wick);
-      O.wick.position.set(CX, .35 + WAX_H + .45, CZ);
+      O.wick = new T.Mesh(new T.CylinderGeometry(.055, .075, 1.05, 8), MAT.wick);
+      O.wick.position.set(CX, .35 + WAX_H + .5, CZ);
       K.scene().add(O.wick);
 
       /* ═══ 火焰：一张程序化纹理搞定三层（焰心蓝 / 内焰白黄 / 外焰橙） ═══ */
-      O.flameMain = K.flame({
-        x: CX, y: .35 + WAX_H + .45, z: CZ, s: 3.0, tex: 'candle', light: 1.6, blend: 'normal'
+      O.flameMain = K.geoFlame({
+        x: CX, y: .35 + WAX_H + .12, z: CZ,
+        r0: .55, h: 2.5, light: 1.15, seg: 30
       });
-      O.flameMain.sp.renderOrder = 6;   /* 画在烧杯壁和雾层之后：火焰透过玻璃仍可见 */
-      O.flameMain.lit = false;
-      O.flameMain.lv = 0;
+      O.flameMain.setLit(0);
 
       /* ═══ 温度探针：细拉丝钢杆 + 陶瓷绝缘环 + 银灰感应珠 + 短手柄 ═══ */
       O.probeGrp = new T.Group();
@@ -134,7 +146,7 @@
       /* ═══ 火柴梗（横穿火焰） ═══ */
       O.stickGrp = new T.Group();
       /* 火柴梗：方形木条（真实火柴梗是方截面），中段木色、两端燃烧后炭化 */
-      O.stickMid = new T.Mesh(new T.BoxGeometry(4.2, .16, .16), MAT.wood);
+      O.stickMid = new T.Mesh(new T.BoxGeometry(3.4, .13, .13), MAT.wood);
       O.stickGrp.add(O.stickMid);
       /* 木纹：两道极细的浅色刻线 */
       [-.04, .04].forEach(function (dy) {
@@ -148,9 +160,9 @@
       var charCols = [0x6b4a2c, 0x3b2a1c, 0x1b1512];
       [-1, 1].forEach(function (sgn) {
         for (var ci = 0; ci < 3; ci++) {
-          var seg = new T.Mesh(new T.BoxGeometry(.5, .17, .17),
+          var seg = new T.Mesh(new T.BoxGeometry(.44, .14, .14),
             new T.MeshStandardMaterial({ color: charCols[ci], roughness: .98 }));
-          seg.position.x = sgn * (1.85 - ci * .42);
+          seg.position.x = sgn * (1.5 - ci * .36);
           seg.visible = false;
           O.stickGrp.add(seg);
           O.charSegs.push({ m: seg, k: ci });
@@ -243,6 +255,22 @@
       mHead.scale.set(1, .9, .9);
       K.scene().add(mHead);
 
+      /* ═══ 点燃用火柴（会真的烧）：木梗 + 红头对齐 + 小火焰 ═══ */
+      O.matchGrp = new T.Group();
+      var mRod = new T.Mesh(new T.BoxGeometry(2.3, .09, .09), MAT.wood);
+      mRod.position.x = 1.15;            /* 原点在红头端 */
+      O.matchGrp.add(mRod);
+      var mHead2 = new T.Mesh(new T.SphereGeometry(.11, 10, 8),
+        new T.MeshStandardMaterial({ color: 0xb0341e, roughness: .5 }));
+      mHead2.scale.set(1.25, .95, .95);
+      O.matchGrp.add(mHead2);
+      /* 划燃后的小火焰（几何火舌） */
+      O.matchFlame = K.geoFlame({ x: 0, y: .16, z: 0, r0: .22, h: .9, light: .3, seg: 16, parent: O.matchGrp });
+      O.matchFlame.setLit(0);
+      O.matchGrp.position.set(HOME.match[0], HOME.match[1], HOME.match[2]);
+      O.matchGrp.rotation.set(0, Math.PI + .4, -.32);   /* 红头在内、梗斜向外下 */
+      K.scene().add(O.matchGrp);
+
       /* 接触阴影 */
       K.blob({ x: CX, z: CZ, r: 3.8 });
       K.blob({ x: TX, z: 0, r: 2.2 });
@@ -261,8 +289,12 @@
       /* 燃烧累计（点燃才计时） */
       if (s.lit > .5) s.burnT = Math.min(60, s.burnT + dt);
 
-      /* 火焰：只设 lit，闪烁与淡入淡出交给引擎统一的 updateFlames 驱动 */
-      O.flameMain.lit = s.lit > .5 || s.relit > .5;
+      /* 火焰：几何火焰由本课驱动（渐亮渐暗 + 摇曳 + 位置跟随蜡柱） */
+      var fv = (s.lit > .5 || s.relit > .5) ? 1 : 0;
+      var flv = s.flameLv === undefined ? 0 : s.flameLv;   /* 先取值，避免 undefined 参与运算 */
+      s.flameLv = flv + (fv - flv) * Math.min(1, dt * 4.2);
+      O.flameMain.setLit(s.flameLv);
+      O.flameMain.tick(s.t);
 
       /* 蜡柱随燃烧变短 + 蜡油池变宽 */
       var burn = Math.min(1, s.burnT / 55);
@@ -271,9 +303,8 @@
       O.wax.position.y = .35 + h / 2;
       O.waxLip.position.y = .35 + h;
       O.wick.position.y = .35 + h + .45;
-      var fy = .35 + h + .35;
-      O.flameMain.sp.position.set(O.cx, fy + O.flameMain.base * .95, O.cz);
-      if (O.flameMain.light) O.flameMain.light.position.copy(O.flameMain.sp.position);
+      O.flameMain.mesh.position.set(O.cx, .35 + h + .12, O.cz);
+      O.flameMain.light.position.set(O.cx, .35 + h + .12 + O.flameMain.h * .55, O.cz);
 
       /* ═══ 器材动线：先在备料区，用到时滑到使用位（不再"突然出现"） ═══ */
       function ease(cur, target, sp) { return cur + (target - cur) * Math.min(1, dt * sp); }
@@ -291,8 +322,11 @@
       O.probeGrp.visible = true;   /* 备料区常驻可见 */
       var tempT = flameTemp(u);
       var heat = Math.max(0, tempT - 400) / 600;
-      O.bead.material.emissiveIntensity = .2 + heat * 1.6;
-      O.bead.material.color.setRGB(.72 + heat * .25, .22 + heat * .1, .16);
+      /* 感应珠保持银灰金属（红色是火柴/火焰的专属色，不能混淆），
+         温度只体现在微弱的红热 emissive 上 */
+      O.bead.material.color.setHex(0xb9c2cb);
+      O.bead.material.emissive.setHex(0x882211);
+      O.bead.material.emissiveIntensity = heat * .5;
 
       /* 火柴梗：从桌面移到火焰中线，两端随燃烧炭化 */
       var tStick = s.stick > .5 ? 1 : 0;
@@ -312,6 +346,26 @@
         cg.m.visible = charK > need * .45;
         cg.m.scale.setScalar(.4 + Math.min(1, charK / need) * .6);
       }
+
+      /* 点燃用火柴：从火柴盒 → 烛芯旁（划燃）→ 蜡烛点燃 → 移回熄灭
+         三段式动线：抬升 → 平移（带轻微倾斜，像被手指捏着）→ 放下 */
+      var tMatch = (s.lit > .5 || s.relit > .5) ? 1 : 0;
+      s.matchIn = ease(s.matchIn || 0, tMatch, 2.2);
+      var mIn = s.matchIn;
+      var mUseX = O.cx - .55, mUseY = .35 + h + .18, mUseZ = O.cz;
+      O.matchGrp.position.set(
+        HOME.match[0] + (mUseX - HOME.match[0]) * mIn,
+        HOME.match[1] + (mUseY - HOME.match[1]) * mIn + Math.sin(Math.PI * mIn) * .9,
+        HOME.match[2] + (mUseZ - HOME.match[2]) * mIn
+      );
+      O.matchGrp.rotation.z = Math.sin(s.t * 5.2) * .05 * Math.sin(Math.PI * mIn);
+      /* 火柴小火焰：到达烛芯才点燃；蜡烛被引燃后火柴熄灭并移回 */
+      var matchBurning = (mIn > .85 && s.lit < .95) ? 1 : (mIn > .85 && s.t < 3 ? 1 : 0);
+      var mlv = s.matchLv === undefined ? 0 : s.matchLv;
+      s.matchLv = mlv + ((matchBurning ? 1 : 0) - mlv) * Math.min(1, dt * 5);
+      O.matchFlame.setLit(s.matchLv);
+      O.matchFlame.tick(s.t + 2.4);
+      if (mIn > .8) s.lit = 1;
 
       /* 干冷烧杯：从备料区移到蜡烛上方，杯口压到烛顶下方才真"扣住" */
       var tHood = s.hood > .5 ? 1 : 0;
@@ -380,7 +434,7 @@
     hint: '拖空白处旋转 · 滚轮缩放 · ←/→ 切换步骤',
     state: st,
     scene: scene,
-    cam: { ty: 9.6, dist: 48, tx: .4, yaw: .40, pitch: .24 },
+    cam: { ty: 7.6, dist: 44, tx: -1.6, yaw: .38, pitch: .16 },
 
     reads: [
       ['lit', '状态'],
@@ -424,7 +478,7 @@
           '<p>外焰与空气（氧气）接触最充分，燃烧最完全，<b>温度最高（约 1000 ℃）</b>；' +
           '内焰燃烧不充分（约 820 ℃）；焰心是<b>石蜡蒸气</b>，几乎没有燃烧（约 480 ℃）。</p>' +
           '<p>拖动滑块改变探针高度，看读数怎么变。</p>',
-        apply: function (s) { reset(s); s.lit = 1; },
+        apply: function (s) { reset(s); s.matchUse = 1; s.lit = 1; },
         controls: [
           { type: 'range', key: 'probe', min: 0, max: 1, step: .05, label: '探针高度（0 焰心底部 → 1 外焰顶端）' }
         ]

@@ -1170,8 +1170,22 @@ K.bench = function (w, d) {
   apron.castShadow = true;
   g.add(apron);
 
-  /* 柜体 */
-  var cabMat = new T.MeshPhysicalMaterial({ color: 0xdfe4ea, roughness: .55, metalness: .04, envMapIntensity: .4, clearcoat: .25, clearcoatRoughness: .4 });
+  /* 四条桌腿（深灰钢，浅背景下给桌面一个"落地"的锚点） */
+  var legMat = new T.MeshStandardMaterial({ color: 0x3a434d, roughness: .5, metalness: .6 });
+  [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(function (sg) {
+    var leg = new T.Mesh(new T.BoxGeometry(1.1, H - TOP_H, 1.1), legMat);
+    leg.position.set(sg[0] * (w / 2 - 2.2), -TOP_H - (H - TOP_H) / 2, sg[1] * (d / 2 - 2.2));
+    leg.castShadow = true;
+    g.add(leg);
+  });
+  /* 踢脚线 */
+  var skirt2 = new T.Mesh(new T.BoxGeometry(w - 1, .8, d - 1),
+    new T.MeshStandardMaterial({ color: 0x262d34, roughness: .7 }));
+  skirt2.position.y = -H + .4;
+  g.add(skirt2);
+
+  /* 柜体（加深，别在浅背景里隐形） */
+  var cabMat = new T.MeshPhysicalMaterial({ color: 0x99a3ae, roughness: .55, metalness: .08, envMapIntensity: .45, clearcoat: .25, clearcoatRoughness: .4 });
   var cab = new T.Mesh(new T.BoxGeometry(w - 2.5, H - TOP_H - 3.2, d - 2.5), cabMat);
   cab.position.y = -TOP_H - 3.2 - (H - TOP_H - 3.2) / 2;
   cab.receiveShadow = true;
@@ -1179,7 +1193,7 @@ K.bench = function (w, d) {
 
   /* 柜门 + 拉手 */
   var doorCount = 3, doorW = (w - 6) / doorCount;
-  var doorMat = new T.MeshPhysicalMaterial({ color: 0xe9edf2, roughness: .5, metalness: .03, clearcoat: .3, clearcoatRoughness: .35 });
+  var doorMat = new T.MeshPhysicalMaterial({ color: 0xb8c2cc, roughness: .5, metalness: .05, clearcoat: .3, clearcoatRoughness: .35 });
   var handleMat = new T.MeshStandardMaterial({ color: 0xa9b2bb, roughness: .28, metalness: .9, envMapIntensity: 1.2 });
   for (var i = 0; i < doorCount; i++) {
     var dx = -(w - 6) / 2 + doorW / 2 + i * doorW;
@@ -1762,6 +1776,80 @@ K.updateMoves = function (dt) {
   }
 };
 K.flameTex = makeFlameTex;
+
+
+/* ── 几何火焰：三层嵌套的 Lathe 火舌（蓝焰心 / 白黄内焰 / 橙外焰） ──
+   刻意不使用自定义 ShaderMaterial，也不使用 4 维顶点色：
+   three r147 上只要有一个材质编译失败，整个渲染循环就会抛异常中断，
+   表现为"场景半渲染 + 大面积黑"。嵌套几何 + 内置材质最稳。 */
+K.geoFlame = function (o) {
+  o = o || {};
+  var r0 = o.r0 || .6, H = o.h || 2.6, seg = o.seg || 22;
+  var cool = o.cool ? 1 : 0;
+
+  function flameGeo(r, h) {
+    var pts = [];
+    for (var i = 0; i <= seg; i++) {
+      var t = i / seg;
+      var bulge = Math.sin(Math.PI * Math.pow(t, .72));
+      pts.push(new T.Vector2(Math.max(.01, r * (1 - t) * (.22 + .78 * bulge)), t * h));
+    }
+    return new T.LatheGeometry(pts, 20);
+  }
+
+  var grp = new T.Group();
+  grp.position.set(o.x || 0, o.y || 0, o.z || 0);
+
+  /* 外焰：橙（半透，能透出内层） */
+  var outer = new T.Mesh(flameGeo(r0, H), new T.MeshBasicMaterial({
+    color: cool ? 0x8fb6ff : 0xff8a1e, transparent: true, opacity: .78,
+    depthWrite: false, side: T.DoubleSide
+  }));
+  outer.renderOrder = 7;
+  grp.add(outer);
+  /* 内焰：白黄 */
+  var inner = new T.Mesh(flameGeo(r0 * .66, H * .66), new T.MeshBasicMaterial({
+    color: cool ? 0xdceaff : 0xfff3c0, transparent: true, opacity: .92,
+    depthWrite: false, side: T.DoubleSide
+  }));
+  inner.renderOrder = 8;
+  grp.add(inner);
+  /* 焰心：淡蓝（石蜡蒸气） */
+  var core = new T.Mesh(flameGeo(r0 * .34, H * .34), new T.MeshBasicMaterial({
+    color: cool ? 0xcfe2ff : 0x86b4ff, transparent: true, opacity: .85,
+    depthWrite: false, side: T.DoubleSide
+  }));
+  core.renderOrder = 9;
+  grp.add(core);
+
+  var parent = o.parent || K.scene();
+  parent.add(grp);
+
+  var light = new T.PointLight(0xffa860, o.light === undefined ? 1.1 : o.light, o.dist || 16, 2);
+  light.position.set(o.x || 0, (o.y || 0) + H * .5, o.z || 0);
+  parent.add(light);
+
+  var baseLit = o.light === undefined ? 1.1 : o.light;
+  return {
+    mesh: grp, mat: outer.material, light: light, h: H, r0: r0,
+    setLit: function (v) {
+      /* NaN 防护：一旦强度变成 NaN，整个场景的 PBR 光照都会变黑 */
+      if (!isFinite(v)) v = 0;
+      outer.material.opacity = .78 * v;
+      inner.material.opacity = .92 * v;
+      core.material.opacity = .85 * v;
+      light.intensity = v * baseLit;
+      grp.visible = v > .01;
+    },
+    tick: function (t) {
+      /* 摇曳 + 呼吸（代替逐顶点扰动，稳） */
+      grp.rotation.z = Math.sin(t * 2.6) * .06 + Math.sin(t * 5.1) * .025;
+      grp.rotation.y = t * .3;
+      var k = 1 + Math.sin(t * 8.2) * .045 + Math.sin(t * 13.7) * .025;
+      grp.scale.set(k, 1 + (k - 1) * .45, k);
+    }
+  };
+};
 
 K.boot = boot;
 K.T = function () { return T; };
