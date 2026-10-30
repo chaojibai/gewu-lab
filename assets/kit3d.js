@@ -314,24 +314,41 @@ function init3d() {
     new T.MeshStandardMaterial({ color: 0xb7bfc8, roughness: .8 }));
   skirt.position.set(0, -15.2, -20.8);
   scene.add(skirt);
-  /* 高窗（发光面，玻璃能"看到"它） */
-  var winMat = new T.MeshStandardMaterial({
-    color: 0xffffff, emissive: 0xf2f8ff, emissiveIntensity: 1.15, roughness: 1
-  });
+  /* 高窗：窗外淡蓝天空（自发光面）+ 2×3 窗格窗框，读作真实窗户而非白板 */
+  var SKY_TEX = (function () {
+    var c = document.createElement('canvas'); c.width = c.height = 128;
+    var x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, '#b9d4ef'); g.addColorStop(.55, '#dbe9f7'); g.addColorStop(1, '#eef4fa');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    x.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < 5; i++) {
+      var cxp = 20 + Math.random() * 88, cyp = 16 + Math.random() * 60, rr = 22 + Math.random() * 26;
+      var rg = x.createRadialGradient(cxp, cyp, 0, cxp, cyp, rr);
+      rg.addColorStop(0, 'rgba(255,255,255,.45)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = rg; x.fillRect(0, 0, 128, 128);
+    }
+    var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; return t;
+  })();
+  var winMat = new T.MeshBasicMaterial({ map: SKY_TEX });
+  var frameMat = new T.MeshStandardMaterial({ color: 0xb7c0ca, roughness: .5, metalness: .2 });
   [[-14, 8], [13, 8]].forEach(function (pos) {
     var win = new T.Mesh(new T.PlaneGeometry(10, 18), winMat);
-    win.position.set(pos[0], pos[1], -20.6);
+    win.position.set(pos[0], pos[1], -20.9);
     scene.add(win);
-    /* 窗框 */
-    var frameMat = new T.MeshStandardMaterial({ color: 0xc3cbd4, roughness: .55, metalness: .15 });
-    [-1, 1].forEach(function (sgn) {
-      var bar = new T.Mesh(new T.BoxGeometry(.45, 18, .8), frameMat);
-      bar.position.set(pos[0] + sgn * 5, pos[1], -20.4);
+    /* 外框 4 条 */
+    [[0, 9.2, 10.6, .55], [0, -9.2, 10.6, .55], [-5.05, 0, .55, 18.4], [5.05, 0, .55, 18.4]].forEach(function (b) {
+      var bar = new T.Mesh(new T.BoxGeometry(b[2], b[3], .95), frameMat);
+      bar.position.set(pos[0] + b[0], pos[1] + b[1], -20.5);
       scene.add(bar);
     });
-    var mid = new T.Mesh(new T.BoxGeometry(10.4, .45, .8), frameMat);
-    mid.position.set(pos[0], pos[1], -20.4);
-    scene.add(mid);
+    /* 中竖梃 + 两道横梃（2×3 格） */
+    var vm = new T.Mesh(new T.BoxGeometry(.42, 18, .95), frameMat);
+    vm.position.set(pos[0], pos[1], -20.5); scene.add(vm);
+    [-3.2, 3.2].forEach(function (yy) {
+      var hm = new T.Mesh(new T.BoxGeometry(10.1, .4, .95), frameMat);
+      hm.position.set(pos[0], pos[1] + yy, -20.5); scene.add(hm);
+    });
   });
 
   /* 墙面试剂架（两层）+ 试剂瓶 + 气阀，低对比，只为丰富景深 */
@@ -923,6 +940,35 @@ K.box = function (o) {
   return m;
 };
 
+/* 圆角盒（倒角几何）：干掉刀切直边，是“真实感”的关键。
+   算法：把 BoxGeometry 每个顶点向内侧盒（各面向内缩 r）的球面推 r。 */
+K.geoRoundBox = function (w, h, d, r, seg) {
+  r = Math.max(.01, Math.min(r === undefined ? .15 : r, Math.min(w, h, d) / 2 - 1e-3));
+  seg = seg || 3;
+  var g = new T.BoxGeometry(w, h, d, seg, seg, seg);
+  var p = g.attributes.position, v = new T.Vector3();
+  var hx = w / 2 - r, hy = h / 2 - r, hz = d / 2 - r;
+  for (var i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    var ix = Math.max(-hx, Math.min(hx, v.x));
+    var iy = Math.max(-hy, Math.min(hy, v.y));
+    var iz = Math.max(-hz, Math.min(hz, v.z));
+    var dx = v.x - ix, dy = v.y - iy, dz = v.z - iz;
+    var len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    p.setXYZ(i, ix + dx / len * r, iy + dy / len * r, iz + dz / len * r);
+  }
+  p.needsUpdate = true; g.computeVertexNormals();
+  return g;
+};
+K.rbox = function (o) {
+  o = o || {};
+  var m = new T.Mesh(K.geoRoundBox(o.sx, o.sy, o.sz, o.r, o.seg),
+    o.mat || new T.MeshStandardMaterial({ color: o.color || 0x8f98a2, roughness: .6 }));
+  m.position.set(o.x || 0, o.y || 0, o.z || 0);
+  world.add(m);
+  return m;
+};
+
 K.sphere = function (o) {
   o = o || {};
   var m = new T.Mesh(new T.SphereGeometry(o.r || 1, 20, 14), o.mat || new T.MeshStandardMaterial({ color: o.color || 0xcc4030, roughness: .5 }));
@@ -950,23 +996,113 @@ K.blob = function (o) {
   return m;
 };
 
-/* 火焰（自动摇曳；obj.visible 控制明灭） */
+/* 火焰：GLSL 着色器火焰（动态噪声湍流 + 真实色温梯度 + 体积光晕） */
+var FLAME_VS = [
+  'varying vec2 vUv;',
+  'void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }'
+].join('\n');
+
+var FLAME_FS = [
+  'varying vec2 vUv;',
+  'uniform float uTime; uniform float uSeed; uniform float uOpacity; uniform vec3 uTint;',
+  'uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3;',
+  'float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }',
+  'float noise(vec2 p){ vec2 i=floor(p),f=fract(p);',
+  '  float a=hash(i),b=hash(i+vec2(1.,0.)),c=hash(i+vec2(0.,1.)),d=hash(i+vec2(1.,1.));',
+  '  vec2 u=f*f*(3.-2.*f); return mix(mix(a,b,u.x),mix(c,d,u.x),u.y); }',
+  'float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.0; a*=.5; } return v; }',
+  'void main(){',
+  '  float y=vUv.y, x=vUv.x;',
+  '  float sway=(fbm(vec2(y*1.6, uTime*0.8+uSeed))-0.5)*0.55*pow(y,0.7);',
+  '  float cx=0.5+sway;',
+  '  float hw=mix(0.36,0.04,pow(y,0.7));',
+  '  hw*=(0.55+0.7*fbm(vec2(y*4.0, uTime*1.6+uSeed)));',
+  '  float d=abs(x-cx)/max(hw,0.02);',
+  '  float body=1.0-smoothstep(0.0,1.0,d);',
+  '  float n1=fbm(vec2(x*3.0, y*4.0 - uTime*2.6 + uSeed));',
+  '  float n2=fbm(vec2(x*7.0+5.0, y*6.0 - uTime*3.6 + uSeed));',
+  '  body*=(0.35+0.95*n1);',
+  '  float vEnv=smoothstep(0.0,0.08,y);',
+  '  float breakUp=mix(1.0, smoothstep(0.32,0.62, n2 + (1.0-y)*0.35), smoothstep(0.4,0.92,y));',
+  '  float a=clamp(body*vEnv*breakUp*1.8,0.0,1.0);',
+  '  float heat=(1.0-y)*(1.0-clamp(d,0.0,1.0)*0.6)+n1*0.18; heat=clamp(heat,0.0,1.0);',
+  '  vec3 col=mix(uC0,uC1,smoothstep(0.0,0.30,heat));',
+  '  col=mix(col,uC2,smoothstep(0.30,0.62,heat));',
+  '  col=mix(col,uC3,smoothstep(0.62,1.0,heat));',
+  '  col*=(0.7+0.8*heat);',
+  '  col*=uTint;',
+  '  gl_FragColor=vec4(col, a*uOpacity);',
+  '}'
+].join('\n');
+
+var GLOW_FS = [
+  'varying vec2 vUv;',
+  'uniform vec3 uColor; uniform float uOpacity;',
+  'void main(){ float d=distance(vUv,vec2(0.5)); float g=smoothstep(0.5,0.0,d); g=pow(g,2.2);',
+  '  gl_FragColor=vec4(uColor*g, g*uOpacity); }'
+].join('\n');
+
+var FLAME_PALETTES = {
+  candle: { c0:[0.55,0.12,0.04], c1:[0.95,0.30,0.07], c2:[1.0,0.62,0.18], c3:[1.0,0.95,0.75], blue:[0.25,0.5,1.0], glow:[1.0,0.55,0.22] },
+  alcohol: { c0:[0.18,0.32,0.75], c1:[0.32,0.52,0.95], c2:[0.55,0.78,1.0], c3:[0.85,0.95,1.0], blue:[0.3,0.55,1.0], glow:[0.5,0.7,1.0] },
+  burner:  { c0:[0.15,0.30,0.70], c1:[0.25,0.45,0.90], c2:[0.45,0.70,1.0], c3:[0.80,0.92,1.0], blue:[0.25,0.5,1.0], glow:[0.45,0.65,1.0] }
+};
+
+function makeFlameMesh(kind, tint, s) {
+  var pal = FLAME_PALETTES[kind] || FLAME_PALETTES.candle;
+  var fm = new T.ShaderMaterial({
+    vertexShader: FLAME_VS, fragmentShader: FLAME_FS,
+    transparent: true, depthWrite: false, side: T.DoubleSide,
+    blending: T.AdditiveBlending,
+    uniforms: {
+      uTime: { value: 0 }, uSeed: { value: Math.random() * 10 },
+      uOpacity: { value: 1 }, uTint: { value: new T.Vector3(1, 1, 1) },
+      uC0: { value: new T.Vector3().fromArray(pal.c0) },
+      uC1: { value: new T.Vector3().fromArray(pal.c1) },
+      uC2: { value: new T.Vector3().fromArray(pal.c2) },
+      uC3: { value: new T.Vector3().fromArray(pal.c3) }
+    }
+  });
+  if (tint !== undefined && tint !== 0xffffff) {
+    var tc = new T.Color(tint);
+    fm.uniforms.uTint.value.set(tc.r, tc.g, tc.b);
+  }
+  var fw = 1.4 * s, fh = 2.6 * s;
+  var flame = new T.Mesh(new T.PlaneGeometry(fw, fh), fm);
+  flame.position.y = fh * 0.5 - s * 0.9;          /* 底部贴近火源 */
+  flame.renderOrder = 3;
+
+  var gm = new T.ShaderMaterial({
+    vertexShader: FLAME_VS, fragmentShader: GLOW_FS,
+    transparent: true, depthWrite: false, side: T.DoubleSide,
+    blending: T.AdditiveBlending,
+    uniforms: { uColor: { value: new T.Vector3().fromArray(pal.glow) }, uOpacity: { value: 0.5 } }
+  });
+  var gw = 3.0 * s, gh = 3.4 * s;
+  var glow = new T.Mesh(new T.PlaneGeometry(gw, gh), gm);
+  glow.position.y = gh * 0.5 - s * 1.15;
+  glow.renderOrder = 2;
+
+  var grp = new T.Group();
+  grp.add(glow); grp.add(flame);
+  return { grp: grp, flame: flame, glow: glow, fm: fm, gm: gm };
+}
+
 K.flame = function (o) {
   o = o || {};
-  var tex = o.tex ? makeFlameTex(o.tex) : FLAME_TEX;
-  /* 浅背景必须用 NormalBlending：加法混合会把橙色叠到饱和变白（实测翻车点） */
-  var blend = (o.blend === 'normal') ? T.NormalBlending : T.AdditiveBlending;
-  var mat = new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false,
-    blending: blend, color: o.color || 0xffffff });
-  var sp = new T.Sprite(mat);
+  var kind = o.tex || 'candle';
   var s = o.s || 2;
-  sp.scale.set(s * 1.4, s * 2.6, 1);
-  sp.position.set(o.x || 0, (o.y || 0) + s * .9, o.z || 0);
-  world.add(sp);
+  var built = makeFlameMesh(kind, o.color, s);
+  var grp = built.grp;
+  grp.position.set(o.x || 0, (o.y || 0) + s * 0.9, o.z || 0);
+  world.add(grp);
+
   var light = new T.PointLight(0xffa050, o.light === undefined ? .9 : o.light, s * 14, 2);
-  light.position.copy(sp.position);
+  light.position.set(o.x || 0, (o.y || 0) + s * 1.2, o.z || 0);
   world.add(light);
-  var rec = { sp: sp, light: light, base: s, phase: Math.random() * 9, lit: true };
+
+  var rec = { sp: built.flame, grp: grp, flameMat: built.fm, glowMat: built.gm,
+    light: light, base: s, phase: Math.random() * 9, lit: true, lv: 1 };
   flames.push(rec);
   return rec;
 };
@@ -1144,9 +1280,10 @@ K.bench = function (w, d) {
   top.castShadow = true; top.receiveShadow = true;
   g.add(top);
 
-  /* 挡水槽（四周一圈下凹细槽） */
-  var gm = new T.MeshStandardMaterial({ color: 0x07090b, roughness: .85 });
-  var gi = 2.4, gw = .36;
+  /* 挡水槽（四周一圈下凹细槽）。槽宽收窄到 .24：
+     原来 .36 在近景里是一圈很粗的黑框，看着像给桌面装了个画框 */
+  var gm = new T.MeshStandardMaterial({ color: 0x11161a, roughness: .85 });
+  var gi = 2.4, gw = .24;
   function groove(px, pz, sx, sz) {
     var m = new T.Mesh(new T.BoxGeometry(sx, .2, sz), gm);
     m.position.set(px, .02, pz);
@@ -1163,10 +1300,18 @@ K.bench = function (w, d) {
   edge.position.set(0, -.1, d / 2 + 1);
   g.add(edge);
 
-  /* 前挡板 */
-  var apron = new T.Mesh(new T.BoxGeometry(w - 1, 3.2, .7),
-    new T.MeshStandardMaterial({ color: 0xcfd6de, roughness: .58, metalness: .05 }));
-  apron.position.set(0, -TOP_H - 1.6, d / 2 - .5);
+  /* 台面下沿的暗缝：给台面一点厚度与接地感。
+     近景（dist<40）时桌腿和柜门都在画面外，只靠这条暗缝和挡板，
+     观众才不会觉得桌面是"浮在空中" */
+  var under = new T.Mesh(new T.BoxGeometry(w + 2, .55, d + 2),
+    new T.MeshStandardMaterial({ color: 0x30373d, roughness: .9 }));
+  under.position.y = -TOP_H - .12;
+  g.add(under);
+
+  /* 前挡板（原来用接近背景的浅灰 0xcfd6de，浅背景下等于隐形，看不出桌体） */
+  var apron = new T.Mesh(new T.BoxGeometry(w - 1, 3.4, .7),
+    new T.MeshStandardMaterial({ color: 0x9ba5b0, roughness: .58, metalness: .05 }));
+  apron.position.set(0, -TOP_H - 1.7, d / 2 - .5);
   apron.castShadow = true;
   g.add(apron);
 
@@ -1379,6 +1524,41 @@ function showResumeHint(rec) {
 /* ---------------- UI（沿用原面板逻辑） ---------------- */
 var ui = {};
 
+var composer = null, ssaoPass = null;
+/* 可选后期：Bloom + sRGB 终合。仅当课件传 postfx:true 且已注入 addons 时启用 */
+function setupPostfx() {
+  if (!T.EffectComposer || !T.RenderPass) return;
+  /* 走 HDR 管线：场景先不做色调映射渲染进半浮点 RT，Bloom 在 HDR 上做，
+     最后由终合 Pass 统一做 ACES + sRGB。这样只有真正的高光（>1）才发光。 */
+  renderer.toneMapping = T.NoToneMapping;
+  var rt = new T.WebGLRenderTarget(W * DPR, H * DPR, { type: T.HalfFloatType, encoding: T.LinearEncoding });
+  composer = new T.EffectComposer(renderer, rt);
+  /* SSAOPass 自己渲染场景（含 AO 合成），有它就不再加 RenderPass，避免重复渲染 */
+  if (T.SSAOPass) {
+    ssaoPass = new T.SSAOPass(scene, camera, W * DPR, H * DPR);
+    ssaoPass.kernelRadius = 14;
+    ssaoPass.minDistance = 0.0012;
+    ssaoPass.maxDistance = 0.14;
+    ssaoPass.output = T.SSAOPass.OUTPUT.Default;
+    composer.addPass(ssaoPass);
+  } else {
+    composer.addPass(new T.RenderPass(scene, camera));
+  }
+  if (T.UnrealBloomPass) {
+    composer.addPass(new T.UnrealBloomPass(new T.Vector2(W, H), .38, .25, 1.1));
+  }
+  var FinalShader = {
+    uniforms: { tDiffuse: { value: null }, uExposure: { value: .9 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader:
+      'uniform sampler2D tDiffuse; uniform float uExposure; varying vec2 vUv;' +
+      'vec3 aces(vec3 x){ float a=2.51,b=0.03,c=2.43,d=0.59,e=0.14; return clamp((x*(a*x+b))/(x*(c*x+d)+e),0.0,1.0); }' +
+      'void main(){ vec4 c=texture2D(tDiffuse,vUv); vec3 col=aces(c.rgb*uExposure); col=pow(col,vec3(1.0/2.2)); gl_FragColor=vec4(col,c.a); }'
+  };
+  composer.addPass(new T.ShaderPass(FinalShader));
+  composer.setSize(W, H);
+}
+
 function boot(c) {
   cfg = c;
   state = c.state || (c.state = {});
@@ -1434,7 +1614,8 @@ function boot(c) {
   window.addEventListener('resize', resize);
 
   if (cfg.scene && cfg.scene.setup) cfg.scene.setup();
-  window.__labDebug = { scene: scene, M: M, renderer: renderer, cam: cam, camera: camera };
+  if (cfg.postfx) setupPostfx();
+  window.__labDebug = { scene: scene, M: M, renderer: renderer, cam: cam, camera: camera, composer: composer };
   goStep(0);
   requestAnimationFrame(loop);
 }
@@ -1446,6 +1627,7 @@ function resize() {
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   camera.aspect = W / H;
   camera.updateProjectionMatrix();
+  if (composer) composer.setSize(W, H);
 }
 
 function goStep(i) {
@@ -1520,7 +1702,9 @@ function renderPanel() {
         '</p><button id="again">换一题</button>';
     }
     ui.body.innerHTML = html;
-    ui.ctrls.innerHTML = '';
+    /* 答题时仍保留该步的按钮控件（如"判定并给出结论"），
+       而不是整个清空——否则带 quiz 的步骤按钮永远看不到 */
+    renderControls(s);
   } else {
     ui.body.innerHTML = s.body || '';
     renderControls(s);
@@ -1615,12 +1799,15 @@ function updateFlames(dt) {
     f.lv = f.lv === undefined ? target : f.lv + (target - f.lv) * Math.min(1, dt * 4.5);
     if (Math.abs(target - f.lv) < .01) f.lv = target;
     var lv = f.lv;
-    /* 保持纹理原始比例 1:1.86（原来乘 (2-flick) 会把火焰纵向拉长近一倍，色带被拉散） */
-    var grow = .45 + .55 * lv;
-    f.sp.scale.set(f.base * 1.4 * flick * grow, f.base * 2.6 * (2 - flick) * .62 * grow, 1);
-    f.sp.material.opacity = lv * .98;
+    /* 着色器火焰：喂时间做湍流动画，喂不透明度做明灭 */
+    f.flameMat.uniforms.uTime.value = NOW;
+    f.flameMat.uniforms.uOpacity.value = lv * .98;
+    f.glowMat.uniforms.uOpacity.value = lv * .42 * flick;
+    var grow = .5 + .5 * lv;
+    f.grp.scale.set(flick * grow, grow, 1);
+    f.grp.quaternion.copy(camera.quaternion);   /* 始终正对相机（公告板） */
+    f.grp.visible = lv > .005;
     f.light.intensity = lv * .85 * flick;
-    f.sp.visible = lv > .005;
   }
 }
 
@@ -1651,7 +1838,7 @@ function loop(t) {
   updateFlames(dt);
   updateLabelScale();
   updateCamera();
-  renderer.render(scene, camera);
+  if (composer) composer.render(); else renderer.render(scene, camera);
   updateLabels();
   updateReads();
   requestAnimationFrame(loop);
@@ -1707,7 +1894,7 @@ K.flameLevel = function (rec, target, dt, speed) {
   rec.lv = rec.lv === undefined ? 0 : rec.lv;
   rec.lv += (target - rec.lv) * Math.min(1, dt * (speed || 2.5));
   rec.lit = rec.lv > .01;
-  rec.sp.material.opacity = rec.lv * .95;
+  if (rec.flameMat) rec.flameMat.uniforms.uOpacity.value = rec.lv * .95;
   rec.light.intensity = rec.lv * .85;
 };
 
@@ -1778,49 +1965,87 @@ K.updateMoves = function (dt) {
 K.flameTex = makeFlameTex;
 
 
-/* ── 几何火焰：三层嵌套的 Lathe 火舌（蓝焰心 / 白黄内焰 / 橙外焰） ──
-   刻意不使用自定义 ShaderMaterial，也不使用 4 维顶点色：
-   three r147 上只要有一个材质编译失败，整个渲染循环就会抛异常中断，
-   表现为"场景半渲染 + 大面积黑"。嵌套几何 + 内置材质最稳。 */
+/* ── 几何火焰 v2：四层嵌套 Lathe，逐帧顶点扰动 ──
+   旧版是同心锥（r 线性收窄），三层等比缩小，看起来就是"一个橙色三角片"。
+   真实烛焰的轮廓是：焰根略收 → 约 1/4 高处最鼓 → 上端细长收尖；
+   颜色由内到外是 淡蓝芯 → 近白黄 → 金黄 → 橙红。
+   本版按这个比例重建轮廓，并对顶点做与高度相关的横向扰动，
+   使火舌会"摆"，而不是整体刚性旋转。
+   仍然不用自定义 ShaderMaterial：three r147 上一个材质编译失败就会中断渲染循环。 */
+var FLAME_GLOW_TEX = null;
 K.geoFlame = function (o) {
   o = o || {};
-  var r0 = o.r0 || .6, H = o.h || 2.6, seg = o.seg || 22;
+  var r0 = o.r0 || .6, H = o.h || 2.6, seg = o.seg || 26;
   var cool = o.cool ? 1 : 0;
 
+  /* 归一化半径轮廓：t=0 焰根，t=1 焰尖 */
+  function prof(t) {
+    /* 焰根不能收得太细，否则火焰像"长在烛芯上的一颗尖洋葱"；
+       真实烛焰底部是宽而圆的，最宽处在下方 1/5 左右 */
+    if (t < .18) return .74 + .26 * (t / .18);
+    /* 注意：t=1 时 (1-.18)/.82 会算出 1.0000000000000002，
+       1-u 变成 -2e-16，Math.pow(负数, 1.55) = NaN，会让焰尖整圈顶点变坏。
+       必须夹到 [0,1] 再取幂。 */
+    var u = Math.min(1, Math.max(0, (t - .18) / .82));
+    return Math.pow(Math.max(0, 1 - u), 1.55) * (1 - .10 * Math.sin(u * Math.PI));
+  }
   function flameGeo(r, h) {
     var pts = [];
     for (var i = 0; i <= seg; i++) {
       var t = i / seg;
-      var bulge = Math.sin(Math.PI * Math.pow(t, .72));
-      pts.push(new T.Vector2(Math.max(.01, r * (1 - t) * (.22 + .78 * bulge)), t * h));
+      pts.push(new T.Vector2(Math.max(.008, r * prof(t)), t * h));
     }
-    return new T.LatheGeometry(pts, 20);
+    return new T.LatheGeometry(pts, 64);
   }
 
   var grp = new T.Group();
   grp.position.set(o.x || 0, o.y || 0, o.z || 0);
 
-  /* 外焰：橙（半透，能透出内层） */
-  var outer = new T.Mesh(flameGeo(r0, H), new T.MeshBasicMaterial({
-    color: cool ? 0x8fb6ff : 0xff8a1e, transparent: true, opacity: .78,
-    depthWrite: false, side: T.DoubleSide
-  }));
-  outer.renderOrder = 7;
-  grp.add(outer);
-  /* 内焰：白黄 */
-  var inner = new T.Mesh(flameGeo(r0 * .66, H * .66), new T.MeshBasicMaterial({
-    color: cool ? 0xdceaff : 0xfff3c0, transparent: true, opacity: .92,
-    depthWrite: false, side: T.DoubleSide
-  }));
-  inner.renderOrder = 8;
-  grp.add(inner);
-  /* 焰心：淡蓝（石蜡蒸气） */
-  var core = new T.Mesh(flameGeo(r0 * .34, H * .34), new T.MeshBasicMaterial({
-    color: cool ? 0xcfe2ff : 0x86b4ff, transparent: true, opacity: .85,
-    depthWrite: false, side: T.DoubleSide
-  }));
-  core.renderOrder = 9;
-  grp.add(core);
+  function layer(r, h, col, op, order, amp) {
+    var m = new T.Mesh(flameGeo(r, h), new T.MeshBasicMaterial({
+      color: col, transparent: true, opacity: op, depthWrite: false, side: T.DoubleSide
+    }));
+    m.renderOrder = order;
+    m.userData.h = h;
+    m.userData.op = op;
+    m.userData.amp = amp;
+    m.userData.base = m.geometry.attributes.position.array.slice(0);
+    grp.add(m);
+    return m;
+  }
+
+  /* 外焰橙红 → 金黄 → 近白黄 → 蓝焰心。
+     内层不透明度要够高，否则中间会透出背景，火焰看起来像一片镂空的塑料 */
+  var outer = layer(r0, H, cool ? 0x6f9bff : 0xff8418, .58, 7, r0 * .26);
+  var inner = layer(r0 * .74, H * .82, cool ? 0x9dbdff : 0xffb033, .70, 8, r0 * .19);
+  var hot = layer(r0 * .50, H * .60, cool ? 0xdbe9ff : 0xffeeae, .82, 9, r0 * .11);
+  var core = layer(r0 * .22, H * .14, cool ? 0xcfe2ff : 0x9cc4ff, .5, 10, 0);
+  /* HDR：内焰/焰心亮度>1，交给 Bloom 晕开，边缘不再像纸片 */
+  if (o.hdr) {
+    inner.material.color.multiplyScalar(1.35);
+    hot.material.color.multiplyScalar(2.0);
+    core.material.color.multiplyScalar(2.6);
+  }
+
+  /* 柔光晕：径向渐变 sprite，包住火焰、柔化硬边（配合 Bloom 出火光） */
+  if (!FLAME_GLOW_TEX) {
+    var gc = document.createElement('canvas'); gc.width = gc.height = 128;
+    var gx = gc.getContext('2d');
+    var gg = gx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gg.addColorStop(0, 'rgba(255,255,255,.95)');
+    gg.addColorStop(.4, 'rgba(255,240,210,.55)');
+    gg.addColorStop(.75, 'rgba(255,190,110,.18)');
+    gg.addColorStop(1, 'rgba(255,170,90,0)');
+    gx.fillStyle = gg; gx.fillRect(0, 0, 128, 128);
+    FLAME_GLOW_TEX = new T.CanvasTexture(gc); FLAME_GLOW_TEX.encoding = T.sRGBEncoding;
+  }
+  var glowMat = new T.SpriteMaterial({ map: FLAME_GLOW_TEX, color: cool ? 0x7fa8ff : 0xffb060, transparent: true, opacity: .6, depthWrite: false });
+  if (o.hdr) glowMat.color.multiplyScalar(1.4);
+  var glow = new T.Sprite(glowMat);
+  glow.scale.set(r0 * 4.6, H * 1.2, 1);
+  glow.position.y = H * .48;
+  glow.renderOrder = 5;
+  grp.add(glow);
 
   var parent = o.parent || K.scene();
   parent.add(grp);
@@ -1829,24 +2054,122 @@ K.geoFlame = function (o) {
   light.position.set(o.x || 0, (o.y || 0) + H * .5, o.z || 0);
   parent.add(light);
 
+  /* 顶点扰动：只动 outer/inner/hot，越往上摆幅越大（火舌顶端飘得最厉害） */
+  function wave(m, t) {
+    var amp = m.userData.amp;
+    if (!amp) return;
+    var p = m.geometry.attributes.position, base = m.userData.base, hh = m.userData.h;
+    var arr = p.array;
+    for (var i = 0, n = p.count; i < n; i++) {
+      var j = i * 3;
+      var by = base[j + 1];
+      var tt = by > 0 ? by / hh : 0;
+      var k = tt * tt * amp;
+      arr[j] = base[j] + Math.sin(t * 7.4 + tt * 4.6) * k;
+      arr[j + 1] = by + Math.sin(t * 9.1 + tt * 2.2) * k * .30;
+      arr[j + 2] = base[j + 2] + Math.sin(t * 5.7 + tt * 3.1 + 1.3) * k * .70;
+    }
+    p.needsUpdate = true;
+  }
+
   var baseLit = o.light === undefined ? 1.1 : o.light;
   return {
     mesh: grp, mat: outer.material, light: light, h: H, r0: r0,
     setLit: function (v) {
       /* NaN 防护：一旦强度变成 NaN，整个场景的 PBR 光照都会变黑 */
       if (!isFinite(v)) v = 0;
-      outer.material.opacity = .78 * v;
-      inner.material.opacity = .92 * v;
-      core.material.opacity = .85 * v;
+      outer.material.opacity = .60 * v;
+      inner.material.opacity = .70 * v;
+      hot.material.opacity = .80 * v;
+      core.material.opacity = .55 * v;
       light.intensity = v * baseLit;
       grp.visible = v > .01;
     },
     tick: function (t) {
-      /* 摇曳 + 呼吸（代替逐顶点扰动，稳） */
-      grp.rotation.z = Math.sin(t * 2.6) * .06 + Math.sin(t * 5.1) * .025;
-      grp.rotation.y = t * .3;
-      var k = 1 + Math.sin(t * 8.2) * .045 + Math.sin(t * 13.7) * .025;
-      grp.scale.set(k, 1 + (k - 1) * .45, k);
+      /* 整体轻微前倾摆动（不再绕 y 轴自转） */
+      grp.rotation.z = Math.sin(t * 2.2) * .034 + Math.sin(t * 5.3) * .013;
+      grp.rotation.x = Math.sin(t * 1.7 + .8) * .022;
+      var k = 1 + Math.sin(t * 7.6) * .030 + Math.sin(t * 12.9) * .016;
+      grp.scale.set(k, 1 + (k - 1) * .5, k);
+      wave(outer, t);
+      wave(inner, t * .93 + .5);
+      wave(hot, t * 1.12 + 1.2);
+    }
+  };
+};
+
+
+/* 程序化体积火焰：片元着色器软边火苗（噪声湍流 + 色温梯度 + 柔光晕）。
+   无几何棱角；返回接口与 K.geoFlame 兼容（mesh/light/h/setLit/tick）。 */
+K.shaderFlame = function (o) {
+  o = o || {};
+  var r = o.r || o.r0 || .6, H = o.h || 2.6;
+  var grp = new T.Group();
+  grp.position.set(o.x || 0, o.y || 0, o.z || 0);
+
+  var mat = new T.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 }, uSeed: { value: Math.random() * 10 }, uOpacity: { value: 1 },
+      uHot: { value: new T.Vector3(1.0, .96, .78) },
+      uMid: { value: new T.Vector3(1.0, .50, .12) },
+      uLow: { value: new T.Vector3(.52, .66, 1.0) }
+    },
+    vertexShader:
+      'varying vec2 vUv;' +
+      'void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader:
+      'varying vec2 vUv;' +
+      'uniform float uTime; uniform float uSeed; uniform float uOpacity;' +
+      'uniform vec3 uHot; uniform vec3 uMid; uniform vec3 uLow;' +
+      'float hash(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }' +
+      'float noise(vec2 p){ vec2 i=floor(p),f=fract(p); float a=hash(i),b=hash(i+vec2(1.,0.)),c=hash(i+vec2(0.,1.)),d=hash(i+vec2(1.,1.)); vec2 u=f*f*(3.-2.*f); return mix(mix(a,b,u.x),mix(c,d,u.x),u.y); }' +
+      'float fbm(vec2 p){ float v=0.,a=.5; for(int i=0;i<5;i++){ v+=a*noise(p); p*=2.02; a*=.5; } return v; }' +
+      'void main(){' +
+      '  float y=vUv.y, x=vUv.x;' +
+      '  float sway=(fbm(vec2(y*2.0,uTime*1.1+uSeed))-.5)*.55*pow(y,.8);' +
+      '  float cx=.5+sway;' +
+      '  float hw=mix(.40,.02,pow(y,.72));' +
+      '  hw*=(.55+.8*fbm(vec2(y*5.0,uTime*2.2+uSeed)));' +
+      '  float d=abs(x-cx)/max(hw,.02);' +
+      '  float body=1.-smoothstep(0.,1.,d);' +
+      '  float n1=fbm(vec2(x*3.0,y*4.0-uTime*2.6+uSeed));' +
+      '  float n2=fbm(vec2(x*6.0+5.0,y*6.0-uTime*3.6+uSeed));' +
+      '  body*=(.45+.95*n1);' +
+      '  body*=mix(1.,smoothstep(.30,.62,n2+(1.-y)*.4),smoothstep(.35,.9,y));' +
+      '  float env=smoothstep(0.,.06,y)*(1.-smoothstep(.85,1.,y));' +
+      '  float a=clamp(body*env*1.7,0.,1.);' +
+      '  float heat=(1.-y)*(1.-clamp(d,0.,1.)*.55)+n1*.18; heat=clamp(heat,0.,1.);' +
+      '  vec3 col=mix(uMid,uHot,smoothstep(.25,.95,heat));' +
+      '  float blue=smoothstep(.20,0.,y); col=mix(col,uLow,blue*.65);' +
+      '  col*=1.7;' +
+      '  gl_FragColor=vec4(col, a*uOpacity);' +
+      '}',
+    transparent: true, depthWrite: false, side: T.DoubleSide, blending: T.NormalBlending
+  });
+  var plane = new T.Mesh(new T.PlaneGeometry(r * 2.4, H), mat);
+  plane.position.y = H * .5;
+  grp.add(plane);
+
+  var parent = o.parent || K.scene();
+  parent.add(grp);
+  var light = new T.PointLight(0xffa050, o.light === undefined ? 1.1 : o.light, o.dist || 16, 2);
+  light.position.set(grp.position.x, grp.position.y + H * .45, grp.position.z);
+  parent.add(light);
+
+  var baseLit = o.light === undefined ? 1.1 : o.light;
+  return {
+    mesh: grp, mat: mat, light: light, h: H, r0: r,
+    setLit: function (v) {
+      if (!isFinite(v)) v = 0;
+      mat.uniforms.uOpacity.value = Math.max(0, Math.min(1, v));
+      light.intensity = v * baseLit;
+      grp.visible = v > .01;
+    },
+    tick: function (t) {
+      mat.uniforms.uTime.value = t;
+      grp.quaternion.copy(camera.quaternion);
+      var k = 1 + Math.sin(t * 7.6) * .05 + Math.sin(t * 12.9) * .03;
+      plane.scale.set(k, 1 + (k - 1) * .6, 1);
     }
   };
 };

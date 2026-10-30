@@ -82,6 +82,7 @@ threejs-lab-courseware/
 │   ├── style.css                     # 面板样式
 │   ├── sim.js                        # 模型层（pH/气体/溶解等）
 │   └── vendor/three.min.js           # three r147 UMD（594KB，可内联）
+│       └── postfx/*.js              # 可选：SSAO/Bloom 后期（11 个 r147 UMD 插件）
 ├── scripts/
 │   ├── selftest.js                   # 安装自检（资产/API/占位符/端到端构建）
 │   ├── views.js                      # 六机位截图

@@ -52,6 +52,33 @@ WebSearch: github 铜匠实验室 tongjiang-lab three.js 化学 仿真 课件
 | 阴影 | `PCFSoftShadowMap` + 每件器材脚下 `blob` 软阴影贴片 | 硬阴影会让器材"粘"在台面上 |
 | UI | 右侧 HTML 面板（步骤/读数/控件/答题），3D 只负责画面 | 面板千万别画进 canvas，文字会糊 |
 
+### 1.1 可选加成：HDR 后期（SSAO + Bloom）
+
+默认不开。需要"产品感"的那几课，在 `K.boot({ ..., postfx: true })` 打开即可
+（引擎内已有实现，`assets/vendor/postfx/*.js` 为 r147 UMD 插件，缺了会自动跳过、不报错）。
+
+**顺序不能错**，否则就是"整屏发光、白背景也糊"：
+
+```
+renderer.toneMapping = NoToneMapping      // ① 先别做色调映射
+  → HalfFloat 半浮点 RT                   // ② 让 >1 的高光有地方存
+  → SSAOPass（它自己渲染场景，别再加 RenderPass）
+  → UnrealBloomPass(strength .38, radius .25, threshold 1.1)
+  → 终合 ShaderPass：ACES + pow(col, 1/2.2)
+```
+
+**关键点：只有真正的高光才该发光。** 想让某个物体发光，就把它的颜色乘到 1 以上：
+
+```js
+new T.MeshBasicMaterial({ color: new T.Color(0xfff6da).multiplyScalar(2.6) });  // HDR
+```
+
+LDR 的白背景（≈1.0）低于 threshold 1.1，不会糊成一片。**不要**靠调 threshold 去救——
+`NoToneMapping + HalfFloat` 才是根。
+
+`K.geoRoundBox(w,h,d,r,seg)` / `K.rbox(o)` 也在这个引擎里：把 Box 顶点推到内嵌球面上得到真圆角，
+配合 `grainTex()` / `normalTex()` 程序化纹理，是"塑料感 → 实物感"的主要来源。
+
 ## 2. 玻璃怎么做（最容易翻车）
 
 **一句话：浅背景下，玻璃能不能被认出来，取决于轮廓线，不取决于材质参数。**
@@ -115,12 +142,33 @@ if (up > .01) { /* 液面：略亮 + 110 次幂高光 + alpha 降到 0.74 */ }
 ## 5. 严谨性（教学产品的底线）
 
 - 读数必须**由模型算**，不是拟合曲线。`pH = 13 - 0.3×滴数` 这种就是"仿假"。
+- **教材里的操作动词必须在画面上有对应物体与运动**：写"通入"就要有导管+气泡，
+  写"罩上"就要有器材移过去的姿态。只演"前后两个状态"＝过程缺失，会被直接指出
+  （详见 `references/detail-rules.md` 第十五节）。
 - 强酸强碱滴定：物料守恒 + 水的自偶电离精确解；等当点由 `cB·vB = cA·vA` 推。
 - 单位自洽：滴数 × 每滴体积 = 已滴加体积；体积 × 浓度 = 物质的量。
 - 分子模型用真实几何：H₂O 键角 **104.5°**、O–H **0.96 Å**、共价半径 O 0.73 / H 0.37 Å（视觉比 ≈2:1）。
 - 有条件的加**误差与评分**：`100 - |终点体积 - 等当点| × 400`，让"操作得准不准"变成可见反馈。
 
 ## 6. 验证流程（不能只看一张正面图）
+
+### 6.0 必须用**硬件 GPU** 截图（否则你会误判自己的作品）
+
+软件渲染（SwiftShader）跑不出 `PMREMGenerator` 的环境贴图 → **玻璃/金属全部发灰发假**，
+帧率只有 2–8 fps，动画看起来是"卡住的"。**在软件渲染下反复调材质 = 越调越假**，
+本项目因此被用户判定为"虚拟仿假"。
+
+```js
+chromium.launch({
+  channel: 'chrome', headless: false,
+  args: ['--use-angle=d3d11', '--ignore-gpu-blocklist', '--disable-gpu-sandbox']
+})
+```
+
+上手先确认不是软件渲染：`chrome://gpu` 里应看到真实显卡型号（如 NVIDIA GTX 1650），
+而不是 `SwiftShader`。
+
+### 6.1 三件套
 
 3D 必须**多机位 + 像素取样 + 报错扫描**三件套，脚本见 `scripts/`。
 
@@ -167,6 +215,12 @@ node scripts/pick.js courses/x.html "600,500;500,600"  # 读帧缓冲像素，�
 | 筒身上有一块矩形 | 刻度贴图无留白、alphaTest 太低 | 四周留 8px 透明边，alphaTest .15 |
 | 读数显示 92.4 而目标 94 | 读数读了补间中间值 | 补间时存 `state[k+'T']`，面板读目标值 |
 | 改了液位却不显示 | 液体渐变按世界高度算，`scale.y` 无效 | `K.setLiquidLevel(mesh,h,y0)` 同步 `uBot/uTop` |
+| 质感发灰发假、帧率 2–8fps | 跑在 SwiftShader 软件渲染上，PMREM 环境没渲染出来 | 换硬件 GPU（`--use-angle=d3d11`），见 §6.0 |
+| 液体里的气泡/颗粒一个都看不见 | 液体 `depthWrite:true`，内部物体被深度测试剔除 | 加 `depthTest:false`；且气泡靠亮边（`0xdcebf6` + DoubleSide + `envMapIntensity 2.2`）不要纯白 |
+| 渐变"没有过渡"/一进步骤就是终态 | ① 分段纯色 + `visible` 逐段点亮；② 用"进步骤就带初值"的量驱动（如 `burnT=max(burnT,6)` 配 `burnT/8`） | CanvasTexture 每帧重绘连续渐变；改用器材到位后才累加的独立计时器 |
+| 备料区器材被面板挡住 / 挡住主体 | 世界坐标靠估，没考虑透视与右侧面板 | `Box3` 投影实测屏幕占比，目标横 62%–77%（见 detail-rules 十八节） |
+| 两件器材重叠（如烧杯和漏斗同占火焰上方） | 一步的 `apply()` 里同时开了占同一空间的两件 | 改成互斥按钮切换（见 detail-rules 十九节） |
+| 只演结果没有过程（"水自己变白了"） | 没画承载操作的通路 | 教材里的操作动词必须有对应物体与运动（见 detail-rules 十五节） |
 
 ## 8. 交付形态
 
@@ -181,4 +235,10 @@ node scripts/pick.js courses/x.html "600,500;500,600"  # 读帧缓冲像素，�
 - `references/render-recipes.md`：材质参数表、环境贴图、液体着色器全文、缓动、交互代码
 - `references/detail-rules.md`：**细节修改规则**（小件三件套、放置朝向、刻度与液面、
   特写自检清单、反例→正解对照表）
+  - 十一 器材入场动线（不要淡入假装出现）· 十二 木头小件材质 · 十三 细杆辨识度
+  - **十五 "过程"类实验必须画出通路**（通入/滴入/振荡：气源+支撑+连接+末端+现象+结果）
+  - **十六 透明液体内部的物体会整颗消失**（`depthTest:false` + 亮边不靠白色）
+  - **十七 连续渐变不要分段硬切**（CanvasTexture 每帧重绘 + 独立计时器 + 演完取出观察）
+  - **十八 备料区坐标要实测屏幕占比**（`Box3` 投影量法 + 面板位置换算 + 先瘦身再挪位）
+  - **十九 同一空间不许同时站两件器材**（互斥按钮 + 证据不随器材撤走清零）
 - `references/github-references.md`：必查仓库（含铜匠实验室）与检索命令
