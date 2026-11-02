@@ -552,3 +552,36 @@ var WL = inRiver ? Math.max(ramp(u), bed(u) + .38) : SEA_Y;
 | 全场景 | ≈54 万三角形 / 776 mesh / 60fps（GTX1650 级） |
 | 水面材质 | `MeshPhysicalMaterial`，`roughness .5 / specularIntensity .10 / envMapIntensity .35` |
 | 水色 | 浅 `[48,138,172]` → 深 `[18,82,118]`（线性值需 `pow(c/255, 2.2)`） |
+
+## 二十一、实验室环境与器材的美学基准
+
+用户定的两条硬标准，新课件达不到就是不达标。样板文件：环境 = `examples/goldfoil-step.js`，
+器材 = `examples/candle-step.js`。
+
+### 21.1 实验室环境（金箔课为样板）
+
+- **桌子**：按真实学生实验台 240×60×76 的比例 → 世界尺寸 `TW 38 × TD 12 × TTH .7`。
+  厚环氧台面（`K.rbox r=.14` 倒角）+ 台面下三块浅灰立板 + 前横梁；
+  下层隔板 `y = -TTH - 5.4`，带后挡板、每侧再分一格；**六只深色脚垫**（`y = FLOOR+.25`）。
+  **不要**再用 `K.bench` 那种柜体式台子——柜门挡住腿，正视图里像悬空板。
+- **材质**：台面/立板各配一张 `grainTex`（灰 .70/.26/rep7、深 .60/.20/rep10），大平面再叠
+  `normalTex(128, 1.0, 3)` + `normalScale ≈ .12`。纯色大平板一眼假。
+- **落地**：设备底部加 `K.blob` 接触阴影（半径+1），这是"压"在台面上的关键。
+- **背景**：`hideLabBackdrop()` 后自建——淡蓝天 CanvasTexture + 2×3 窗格（外框 + 中竖梃 + 两道横梃），
+  z ≈ -20.9 / -20.5。纯白自发光板会露馅。
+- **后期**：`META[slug]['postfx'] = True`（SSAO + UnrealBloom + ACES 终合）。
+- **相机**：`cam = { ty: 1.4, dist: 27, tx: 1, yaw: .12, pitch: .44 }`。
+
+### 21.2 器材（蜡烛课为样板）
+
+| 类别 | 参数 |
+|---|---|
+| 玻璃 | `MeshPhysicalMaterial{ color 0xf2f8fc, roughness .05, opacity .3, DoubleSide, depthWrite:false, clearcoat .7, clearcoatRoughness .08, envMapIntensity 1.8 }` |
+| 钢/金属 | `0xaab2ba, roughness .3, metalness .9, env 1.25`；精细件 `0xc7ced6, .22, .95, 1.4` |
+| 陶瓷/白件 | `0xf2f5f8, roughness .5, metalness .05`；表面皿 `0xf0f4f8, .25, clearcoat .8` |
+| 蜡/受热件 | `0xfbf6ec, .42, clearcoat .55` |
+
+- **火焰**只用 `K.shaderFlame`（体积火）；Lathe 硬边火、贴图光斑都不要。
+- **备料**：所有器材一开始就在桌面固定位（`HOME.xxx`），用到才移动，结束后归位；不许 `visible=true` 凭空出现。
+- **读数件**：数显化（白身 + 绿屏 + 银珠），数值缓动（`probeDisp`），不瞬移。
+- **尺寸**：小件要够胖（试管高径比 ≈5）；细杆靠"母线 + 管内容物 + 连接环"三件套读形体。
