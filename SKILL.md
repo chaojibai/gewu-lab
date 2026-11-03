@@ -180,6 +180,13 @@ node scripts/pick.js courses/x.html "600,500;500,600"  # 读帧缓冲像素，�
 
 多机位立刻能暴露正面看不到的问题：旋塞像两个大圆环、侧视标注压住瓶身、俯视时标注压在液面上。
 
+### 6.2 行为回归：证明"算得对、动得对"
+
+截图只证明"看起来对"。页面再暴露几个调试钩子（如 `__tip()` 焦点坐标、`__held()` 状态、
+`__crate()` 被操作对象位置），用 `scripts/behavior_probe.js` 读数值做断言：
+资产件数 ≥1、坐标无 NaN、零 pageerror。外观 + 行为双回归，改模板里
+READY/PROBES 两处即可接入新页面。
+
 **`detail` 机位必须单独过一遍清单**（这份清单是"凑近就露馅"的问题库）：
 
 ```
@@ -227,6 +234,7 @@ node scripts/pick.js courses/x.html "600,500;500,600"  # 读帧缓冲像素，�
 | 山体被切出一道深槽 | `Math.min(h,…)` 没带空间范围 | 加位置条件（如 `x > c-12`），只作用于该段 |
 | 河口"一摊浅水"/滩面小水洼 | 滩面压平带给河道留了例外，噪声没压住 | 整片滩面压平 + 一条固定宽度通道穿过 |
 | 剖面上一条条竖纹 | 每列 `Math.random()` 上色 | 剖面颜色不掺随机量 |
+| 内嵌模型整批消失、控制台零报错 | `loader.load("data:")` 内部走 fetch，被宿主预览 CSP 拦截 | base64→ArrayBuffer→`loader.parse()` 零 fetch 解析（见 external-assets 三） |
 
 ## 8. 交付形态
 
@@ -251,3 +259,7 @@ node scripts/pick.js courses/x.html "600,500;500,600"  # 读帧缓冲像素，�
     `Math.min` 削平要带范围 + 河口=压平滩面+固定宽度通道）
   - **二十一 实验室环境与器材的美学基准**（桌子 38×12×.7 + 颗粒/法线/接触阴影/窗格/postfx；器材材质表 + 火焰 + 备料规则）
 - `references/github-references.md`：必查仓库（含铜匠实验室）与检索命令
+- `references/external-assets.md`：**外部模型资产进单文件**（分件素材要求、减面量化预算、
+  CSP 安全加载、加载进度反馈、多阶段状态机骨架、行为回归）
+- `scripts/behavior_probe.js`：行为回归通用模板（数值探针 + 断言 + 截图，改 READY/PROBES 两处即用）
+- 子技能 `robot-glb-sim/`：真实 CAD 网格可操纵机械臂仿真的完整成品与专属细节（URDF 装配、数值 IK、抓放）
