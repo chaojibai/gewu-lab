@@ -41,6 +41,7 @@ const ASSERT = s => {
   const errors = [];
   page.on('pageerror', e => errors.push('[pageerror] ' + e.message.slice(0, 200)));
   page.on('console', m => { if (m.type() === 'error') errors.push('[console.error] ' + m.text().slice(0, 150)); });
+  page.on('requestfailed', r => errors.push('[requestfailed] ' + r.url().slice(0, 120) + ' ' + ((r.failure() || {}).errorText || '')));
 
   const t0 = Date.now();
   await page.goto('file://' + file);
