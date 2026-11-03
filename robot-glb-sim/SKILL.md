@@ -66,3 +66,11 @@ agent_created: true
 
 - `references/pitfalls.md` — 每个坑的完整原因、代码骨架（装配 / 数值IK / 抓放状态机 / 摆正）
 - `scripts/verify_template.js` — Playwright 真 GPU 验证模板（改探针即用）
+
+## 可运行演示
+
+`demo/` 目录是本技能的完整成品：真实 CAD 网格六轴机械臂仿真，双击
+`demo/robot-arm-glb.html` 即可离线运行（单文件 4.9MB，内嵌 three + postfx +
+GLTFLoader + 9 个 glb base64，已验证加载 1.7s / 零报错）。含操纵杆、六关节滑块、
+IK 点选、抓放自动演示；另附程序化几何对照版与可复现的构建脚本、URDF、减面后网格。
+详见 `demo/README.md`。
