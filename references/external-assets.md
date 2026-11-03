@@ -87,3 +87,5 @@ const steps = [
 （如 `__tip()` / `__held()` / `__crate()`），Playwright 读数值做断言，
 配合硬件 GPU（`channel:'chrome'` + `--use-angle=d3d11`，见 SKILL.md §6.0）。
 通用模板：`scripts/behavior_probe.js`，改探针数组即用。
+全局分数只做初筛——关键特征（末端坐标、部件存在性、关键读数）各有分量断言，
+全局相似不代表局部正确（见 workflow-rules 五）。
