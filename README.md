@@ -134,4 +134,3 @@ threejs-lab-courseware/
 
 - [three.js](https://threejs.org)（MIT）
 - [Playwright](https://playwright.dev)（Apache-2.0）
-- 铜匠实验室 [tongjiang-lab](https://github.com/smithjohn78390/tongjiang-lab)：单文件 3D 课件的形态启发
