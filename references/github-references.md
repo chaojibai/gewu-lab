@@ -1,6 +1,6 @@
 # 参考实现与检索清单
 
-## 必查：铜匠实验室（Tongjiang Lab）
+## 参考：铜匠实验室（Tongjiang Lab）—— 可选，非必查
 
 - 仓库：https://github.com/smithjohn78390/tongjiang-lab
 - 站点：https://lab.tongjiang.app

@@ -74,7 +74,7 @@ threejs-lab-courseware/
 ├── references/
 │   ├── render-recipes.md             # 材质参数表、环境贴图、液体着色器全文、交互代码
 │   ├── detail-rules.md               # 细节修改规则：小件三件套、刻度液面、断肢检查、反例库
-│   └── github-references.md          # 必查的开源参考（含铜匠实验室）与检索命令
+│   └── github-references.md          # 可参考的开源实现（含铜匠实验室，可选）与检索命令
 ├── INSTALL.md                        # 接入指南（三种装法 + 六个"效果不好"的真实原因）
 ├── assets/                           # ★ 引擎资产（缺了它什么都跑不起来）
 │   ├── kit3d.js                      # 引擎：玻璃/液体/器材/缓动/交互
