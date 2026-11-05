@@ -15,11 +15,12 @@ description: 制作"单文件、可离线、模型驱动"的 three.js 学科仿�
 
 - **素质教育线（默认主线）**：初中/小学/科普/自然的化学·物理实验动画、水循环等自然场景。
   资产与红线见本文件正文 + `references/detail-rules.md`（含水面等值线裁剪、解析法线地形等）。
-- **职业教育线**：实训/工种/真实设备还原/精模/工业仿真（机械臂、产线、仪器）。
-  主干是子技能 `robot-glb-sim/`（真实 CAD `.glb` 可操纵仿真）；纯前端精模与轻量开源工具链见
-  `references/vocational.md`。
+- **职业教育线（已独立成子技能 `vocational-3d/`）**：实训/工种/真实设备还原/拆装/剖切/精模/工业仿真。
+  **遇到这类需求，先读 `vocational-3d/SKILL.md`，不要在本文的素养线基准上改**——两条线的美术基准、
+  场景模板（`K.envShop` 车间 vs `K.envRoom` 实验室）、验收标准都不同，混用必翻车。
+  职教线摘要见 `references/vocational.md`；真实 CAD `.glb` 可操纵仿真仍走 `robot-glb-sim/`。
 
-**自动判断信号**：需求出现「实训 / 工种 / 设备 / 拆装 / 真实还原 / 精模 / 工业 / 高仿真 / PBR / 参数化」→ 职业教育线；
+**自动判断信号**：需求出现「实训 / 工种 / 设备 / 拆装 / 真实还原 / 精模 / 工业 / 高仿真 / PBR / 参数化」→ 职业教育线（转 `vocational-3d/`）；
 出现「初中 / 小学 / 科普 / 自然 / 水循环 / 示意 / low-poly」或泛化课件 → 素质教育线（默认）。
 不确定时先走素质教育线，据细节切换。两条线共用同一引擎（`assets/kit3d.js`）与验证脚本（`scripts/`）。
 
@@ -261,6 +262,8 @@ READY/PROBES 两处即可接入新页面。全局分数只做初筛——关键�
 | 筒身上有一块矩形 | 刻度贴图无留白、alphaTest 太低 | 四周留 8px 透明边，alphaTest .15 |
 | 读数显示 92.4 而目标 94 | 读数读了补间中间值 | 补间时存 `state[k+'T']`，面板读目标值 |
 | 改了液位却不显示 | 液体渐变按世界高度算，`scale.y` 无效 | `K.setLiquidLevel(mesh,h,y0)` 同步 `uBot/uTop` |
+| 发动机/机械臂摆在化学实验室桌上 | 直接调了 `K.envRoom()`（实验室身份模板） | 职教场景改 `K.envShop()`（水泥地坪+工位黄线+压型钢板+卷帘门+工具柜+厂房顶灯），见 vocational.md |
+| 设备像浮着、看不出工位 | 没有地面，或相机俯角太小被台面裁掉 | `K.envShop({groundY})` 给地坪；俯角 ≥.30、台面别比设备大 |
 | 质感发灰发假、帧率 2–8fps | 跑在 SwiftShader 软件渲染上，PMREM 环境没渲染出来 | 换硬件 GPU（`--use-angle=d3d11`），见 §6.0 |
 | 液体里的气泡/颗粒一个都看不见 | 液体 `depthWrite:true`，内部物体被深度测试剔除 | 加 `depthTest:false`；且气泡靠亮边（`0xdcebf6` + DoubleSide + `envMapIntensity 2.2`）不要纯白 |
 | 渐变"没有过渡"/一进步骤就是终态 | ① 分段纯色 + `visible` 逐段点亮；② 用"进步骤就带初值"的量驱动（如 `burnT=max(burnT,6)` 配 `burnT/8`） | CanvasTexture 每帧重绘连续渐变；改用器材到位后才累加的独立计时器 |
@@ -308,7 +311,8 @@ READY/PROBES 两处即可接入新页面。全局分数只做初筛——关键�
 - `scripts/state_gate.py`：轻量状态门（进度权威 + 证据标记 + 修正轮次上限 + 硬停）
 - `references/pedagogy.md`：**探究结构与多表征**（仿真设计七则、兴趣曲线与步骤序列、
   学生自造数据点、Do/Show/Tell 分工、真人验收）
-- `references/vocational.md`：**职业教育线轻量开源方案**（双线分流、不下载 Blender/Fusion/Substance 等大部头、程序化精模、开源 CC0/Apache `.glb`、gltf-transform 减面、Draco/KTX2、CSP 安全加载）
+- `references/vocational.md`：**职教线入口摘要**（指向子技能 `vocational-3d/`：程序化精模、剖切建模法、实训车间 `K.envShop`、机构运动、本线坑表、课件骨架模板）
+- 子技能 `vocational-3d/`：**职业教育设备 3D 课件线**（独立技能，含 7 篇 references + 课件骨架 + 自检清单）
 - `references/qa-and-diagnostics.md`：**夹具稳定性与渲染诊断**（可复现截图、容差断言、
   症状树、无光照诊断材质、修后复验、可达性底线）
 - 根目录 `LAB-FINDINGS.md`：针对技能自身的实验记录（含推翻预设的发现，新发现往里追加）

@@ -9,6 +9,8 @@ var W = 1, H = 1, DPR = 1;
 
 var cam = { yaw: .6, pitch: .28, dist: 100, tx: 0, ty: 9, tz: 0, fov: 42 };
 var CAM0 = Object.assign({}, cam);
+var camTween = null;         // 逐步机位补间（步骤可写 s.cam，用户一动就交还控制权）
+var curStepCam = null;       // 当前步骤声明的机位，"重置视角"回到这里
 var cfg = null, state = {}, stepIdx = 0, lastT = 0, NOW = 0;
 var quizPick = null, quizData = null;
 var world = null;            // K.group：课件对象根节点
@@ -309,6 +311,7 @@ function init3d() {
   var wall = new T.Mesh(new T.PlaneGeometry(150, 60), wallMat);
   wall.position.set(0, 8, -21);
   scene.add(wall);
+  BGREF.wall = wall;   /* 课件调用 K.envRoom() 时会换掉这面淡墙 */
   /* 墙裙 */
   var skirt = new T.Mesh(new T.BoxGeometry(150, 1.6, .5),
     new T.MeshStandardMaterial({ color: 0xb7bfc8, roughness: .8 }));
@@ -332,22 +335,25 @@ function init3d() {
   })();
   var winMat = new T.MeshBasicMaterial({ map: SKY_TEX });
   var frameMat = new T.MeshStandardMaterial({ color: 0xb7c0ca, roughness: .5, metalness: .2 });
+  BGREF.wins = [];   /* 课件调用 K.envRoom() 时会换成内凹窗 */
   [[-14, 8], [13, 8]].forEach(function (pos) {
     var win = new T.Mesh(new T.PlaneGeometry(10, 18), winMat);
     win.position.set(pos[0], pos[1], -20.9);
     scene.add(win);
+    BGREF.wins.push(win);
     /* 外框 4 条 */
     [[0, 9.2, 10.6, .55], [0, -9.2, 10.6, .55], [-5.05, 0, .55, 18.4], [5.05, 0, .55, 18.4]].forEach(function (b) {
       var bar = new T.Mesh(new T.BoxGeometry(b[2], b[3], .95), frameMat);
       bar.position.set(pos[0] + b[0], pos[1] + b[1], -20.5);
       scene.add(bar);
+      BGREF.wins.push(bar);
     });
     /* 中竖梃 + 两道横梃（2×3 格） */
     var vm = new T.Mesh(new T.BoxGeometry(.42, 18, .95), frameMat);
-    vm.position.set(pos[0], pos[1], -20.5); scene.add(vm);
+    vm.position.set(pos[0], pos[1], -20.5); scene.add(vm); BGREF.wins.push(vm);
     [-3.2, 3.2].forEach(function (yy) {
       var hm = new T.Mesh(new T.BoxGeometry(10.1, .4, .95), frameMat);
-      hm.position.set(pos[0], pos[1] + yy, -20.5); scene.add(hm);
+      hm.position.set(pos[0], pos[1] + yy, -20.5); scene.add(hm); BGREF.wins.push(hm);
     });
   });
 
@@ -399,30 +405,39 @@ function init3d() {
   BLOB_TEX = blobTexture();
 }
 
-/* 环境贴图：仿 three 的 RoomEnvironment（房间盒 + 发光面板），PMREM 捕获 */
+/* 环境贴图：仿 three 的 RoomEnvironment（房间盒 + 发光面板），PMREM 捕获。
+   增强版：加入暗地面/暗侧墙/侧向亮窗，让金属反射出上亮下暗 + 高光带的明暗结构，
+   否则反射是一片均匀白，金属件会像哑光塑料。 */
 function makeEnvMap() {
   var pmrem = new T.PMREMGenerator(renderer);
   var env = new T.Scene();
+  /* 房间内壁：略暗，作为反射的“暗部底” */
   var room = new T.Mesh(
-    new T.BoxGeometry(26, 14, 26),
-    new T.MeshStandardMaterial({ color: 0xf2f4f7, side: T.BackSide, roughness: .95 }));
-  room.position.y = 4;
-  env.add(room);
-  /* 顶部主灯板 */
-  var panel = new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 14 });
-  var main = new T.Mesh(new T.PlaneGeometry(10, 10), panel);
-  main.position.set(0, 10.8, 0);
-  main.rotation.x = Math.PI / 2;
-  env.add(main);
-  var side1 = main.clone();
-  side1.material = new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 6 });
-  side1.position.set(-9, 9.5, 4);
-  side1.scale.set(.55, .55, 1);
-  env.add(side1);
-  var side2 = side1.clone();
-  side2.position.set(9, 9.5, -5);
-  side2.scale.set(.7, .7, 1);
-  env.add(side2);
+    new T.BoxGeometry(34, 22, 34),
+    new T.MeshStandardMaterial({ color: 0xc6ccd3, side: T.BackSide, roughness: 1 }));
+  room.position.y = 5; env.add(room);
+  /* 暗色地面：金属底部反射偏暗，形成上亮下暗梯度 */
+  var gnd = new T.Mesh(new T.PlaneGeometry(34, 34),
+    new T.MeshStandardMaterial({ color: 0x6b727a, roughness: .95 }));
+  gnd.position.y = -5; gnd.rotation.x = Math.PI / 2; env.add(gnd);
+  /* 四面暗墙：侧向反射有结构（避免一片均匀白） */
+  [[-17, 0], [17, 0], [0, -17], [0, 17]].forEach(function (p) {
+    var w = new T.Mesh(new T.PlaneGeometry(14, 16),
+      new T.MeshStandardMaterial({ color: 0x3c434b, roughness: .85 }));
+    w.position.set(p[0], 5, p[1]);
+    if (p[0] !== 0) w.rotation.y = Math.PI / 2;
+    env.add(w);
+  });
+  /* 顶部主灯板（亮，反射高光） */
+  var panel = new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 16 });
+  var main = new T.Mesh(new T.PlaneGeometry(13, 13), panel);
+  main.position.set(0, 12.5, 0); main.rotation.x = Math.PI / 2; env.add(main);
+  /* 侧向亮窗（反射条纹 → 金属上的高光带） */
+  for (var i = 0; i < 4; i++) {
+    var win = new T.Mesh(new T.PlaneGeometry(2.6, 10),
+      new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0xcfe6ff, emissiveIntensity: 9 }));
+    win.position.set(-13 + i * 8.6, 6, 16.9); env.add(win);
+  }
   var rt = pmrem.fromScene(env, .04);
   scene.environment = rt.texture;
   pmrem.dispose();
@@ -1153,8 +1168,10 @@ K.spriteLabel = function (pos, text, o) {
 
   var tex = new T.CanvasTexture(c);
   tex.minFilter = T.LinearFilter;
-  var mat = new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  /* onTop：标注置顶（不参与深度测试），避免被实体墙板切掉半截文字 */
+  var mat = new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: !o.onTop });
   var sp = new T.Sprite(mat);
+  if (o.onTop) sp.renderOrder = 60;
   var aspect = c.height / c.width;
   sp.scale.set(wUnits, wUnits * aspect, 1);
   spriteLabels.push({ sp: sp, w: wUnits, h: wUnits * aspect, ref: 38 });
@@ -1266,6 +1283,420 @@ K.stopcock = function (o) {
 };
 
 /* 真实化学实验台：环氧台面（挡水槽）+ 前挡板 + 柜门/拉手 + 踢脚 + 侧板 */
+/* 真实房间环境：默认背景为"远观"设计，淡墙在近景机位里是隐形的，
+   窗和试剂架看起来全部悬空。调用本函数换一面实心后墙 + 侧墙围合，
+   窗/试剂架/裙脚立刻"挂"在墙上；只影响调用了它的课件。 */
+var BGREF = { wall: null };
+K.envRoom = function (o) {
+  o = o || {};
+  if (BGREF.wall) BGREF.wall.visible = false;
+  (BGREF.wins || []).forEach(function (m) { m.visible = false; });
+  var bc = document.createElement('canvas'); bc.width = 4; bc.height = 256;
+  var bx = bc.getContext('2d'); var bgg = bx.createLinearGradient(0, 0, 0, 256);
+  bgg.addColorStop(0, o.top || '#ffffff');
+  bgg.addColorStop(.55, o.mid || '#f2f5f8');
+  bgg.addColorStop(1, o.bot || '#dfe6ec');
+  bx.fillStyle = bgg; bx.fillRect(0, 0, 4, 256);
+  scene.background = new T.CanvasTexture(bc);
+
+  /* 墙面细颗粒：近白噪点 + 极淡竖向刷痕，大平面不再"塑料平板" */
+  var wallTex = (function () {
+    var c = document.createElement('canvas'); c.width = c.height = 256;
+    var x = c.getContext('2d');
+    var img = x.createImageData(256, 256);
+    for (var i = 0; i < img.data.length; i += 4) {
+      var v = 244 + Math.floor(Math.random() * 11);
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    x.globalAlpha = .05;
+    for (var s = 0; s < 9; s++) {
+      x.fillStyle = Math.random() < .5 ? '#ffffff' : '#9aa7b3';
+      x.fillRect(Math.random() * 256, 0, 2 + Math.random() * 5, 256);
+    }
+    var t = new T.CanvasTexture(c);
+    t.wrapS = t.wrapT = T.RepeatWrapping;
+    return t;
+  })();
+
+  function wallMat(color, rep) {
+    var tx = wallTex.clone(); tx.needsUpdate = true;
+    tx.repeat.set(rep[0], rep[1]);
+    return new T.MeshStandardMaterial({ color: color, roughness: .93, metalness: 0, map: tx, side: T.DoubleSide });
+  }
+
+  /* 实心后墙：略深于背景，受光后有明暗，窗与试剂架贴在它上面 */
+  var wall2 = new T.Mesh(new T.PlaneGeometry(230, 96), wallMat(o.wall || 0xaab7c3, [8, 4]));
+  wall2.position.set(0, 12, -21.15);
+  scene.add(wall2);
+
+  /* 左右侧墙：给房间"围合感"，转视角时不再是一望无际的白 */
+  [-1, 1].forEach(function (sg) {
+    var sw = new T.Mesh(new T.PlaneGeometry(150, 96), wallMat(o.side || 0xb4c1cc, [5, 4]));
+    sw.position.set(sg * 76, 12, -12);
+    sw.rotation.y = -sg * Math.PI / 2;
+    scene.add(sw);
+  });
+
+  /* 墙裙：下半墙一条深色带 + 分界线，近看墙面不再是均匀的白 */
+  var skirtMat = new T.MeshStandardMaterial({ color: o.skirt || 0x99a7b3, roughness: .85, metalness: 0, side: T.DoubleSide });
+  var bandB = new T.Mesh(new T.PlaneGeometry(230, 13), skirtMat);
+  bandB.position.set(0, -8.6, -21.0);
+  scene.add(bandB);
+  [-1, 1].forEach(function (sg) {
+    var bandS = new T.Mesh(new T.PlaneGeometry(150, 13), skirtMat);
+    bandS.position.set(sg * 75.85, -8.6, -12);
+    bandS.rotation.y = -sg * Math.PI / 2;
+    scene.add(bandS);
+  });
+  var trimMat = new T.MeshStandardMaterial({ color: 0x8b98a4, roughness: .7 });
+  var trimB = new T.Mesh(new T.BoxGeometry(230, .38, .34), trimMat);
+  trimB.position.set(0, -2.1, -20.95);
+  scene.add(trimB);
+  [-1, 1].forEach(function (sg) {
+    var trimS = new T.Mesh(new T.BoxGeometry(.34, .38, 150), trimMat);
+    trimS.position.set(sg * 75.7, -2.1, -12);
+    scene.add(trimS);
+  });
+
+  /* 黑板：填掉两窗之间的墙面空白，给房间"化学教室"的身份 */
+  var bbTex = (function () {
+    var c = document.createElement('canvas'); c.width = 512; c.height = 288;
+    var x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, 288);
+    g.addColorStop(0, '#31493f'); g.addColorStop(1, '#283d35');
+    x.fillStyle = g; x.fillRect(0, 0, 512, 288);
+    /* 残留粉笔痕：低透明度的短笔划 + 半擦痕 */
+    x.globalAlpha = .10; x.strokeStyle = '#e8f0ea'; x.lineWidth = 3; x.lineCap = 'round';
+    for (var i = 0; i < 7; i++) {
+      var x0 = 40 + Math.random() * 380, y0 = 50 + Math.random() * 180;
+      x.beginPath(); x.moveTo(x0, y0);
+      x.lineTo(x0 + 40 + Math.random() * 70, y0 + (Math.random() - .5) * 26);
+      x.stroke();
+    }
+    x.globalAlpha = .18; x.fillStyle = '#dfe9e2'; x.font = '34px Georgia, serif';
+    x.fillText('NaCl', 80, 110); x.fillText('H₂O', 340, 200);
+    x.globalAlpha = .07; x.fillStyle = '#ffffff';
+    x.fillRect(60, 190, 340, 40);   /* 板擦抹过的一团淡痕 */
+    var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; return t;
+  })();
+  var bbMat = new T.MeshStandardMaterial({ map: bbTex, roughness: .92 });
+  var bb = new T.Mesh(new T.PlaneGeometry(19.2, 9.6), bbMat);
+  bb.position.set(0, 6.2, -21.02);
+  scene.add(bb);
+  var bbFrameMat = new T.MeshStandardMaterial({ color: 0xb9c0c8, roughness: .45, metalness: .3 });
+  [[0, 11.25, 20.2, .5], [0, 1.15, 20.2, .5], [-9.85, 6.2, .5, 10.5], [9.85, 6.2, .5, 10.5]].forEach(function (b) {
+    var bar = new T.Mesh(new T.BoxGeometry(b[2], b[3], .5), bbFrameMat);
+    bar.position.set(b[0], b[1], -20.75);
+    scene.add(bar);
+  });
+  var tray = new T.Mesh(new T.BoxGeometry(18, .34, .9),
+    new T.MeshStandardMaterial({ color: 0xc4cbd3, roughness: .6, metalness: .1 }));
+  tray.position.set(0, .78, -20.6);
+  scene.add(tray);
+  [[-6.4, .1], [-5.7, -.05], [6.8, .08]].forEach(function (p) {
+    var ch = new T.Mesh(new T.BoxGeometry(1.3, .22, .22),
+      new T.MeshStandardMaterial({ color: 0xf3f1ea, roughness: .9 }));
+    ch.position.set(p[0], 1.03, -20.6 + p[1]);
+    ch.rotation.y = (Math.random() - .5) * .6;
+    scene.add(ch);
+  });
+
+  /* 内凹窗：外框凸出墙面、四周暗色 reveal 给进深、玻璃带反光——不再是贴纸 */
+  var skyTex = (function () {
+    var c = document.createElement('canvas'); c.width = c.height = 128;
+    var x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, '#a9c9ec'); g.addColorStop(.55, '#d5e6f6'); g.addColorStop(1, '#edf4fb');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    x.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < 5; i++) {
+      var cxp = 20 + Math.random() * 88, cyp = 16 + Math.random() * 60, rr = 22 + Math.random() * 26;
+      var rg = x.createRadialGradient(cxp, cyp, 0, cxp, cyp, rr);
+      rg.addColorStop(0, 'rgba(255,255,255,.45)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = rg; x.fillRect(0, 0, 128, 128);
+    }
+    var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; return t;
+  })();
+  var skyMat = new T.MeshBasicMaterial({ map: skyTex });
+  var glassMat = new T.MeshPhysicalMaterial({
+    color: 0xdceefb, roughness: .06, metalness: 0, transparent: true, opacity: .2,
+    envMapIntensity: 1.5, side: T.DoubleSide, depthWrite: false
+  });
+  var wFrameMat = new T.MeshStandardMaterial({ color: 0xa7b2bd, roughness: .5, metalness: .25 });
+  var revealMat = new T.MeshStandardMaterial({ color: 0x8794a1, roughness: .9 });
+  var sillMat = new T.MeshStandardMaterial({ color: 0xe4eaef, roughness: .55 });
+  [-16.5, 16.5].forEach(function (wx) {
+    var sky = new T.Mesh(new T.PlaneGeometry(10.4, 18.2), skyMat);
+    sky.position.set(wx, 8, -20.95); scene.add(sky);
+    var glass = new T.Mesh(new T.PlaneGeometry(10.2, 18.0), glassMat);
+    glass.position.set(wx, 8, -20.72); scene.add(glass);
+    /* reveal：窗洞四周一圈暗色斜壁，读出墙的厚度 */
+    [[0, 9.62, 11.9, .55], [0, -9.62, 11.9, .55], [-5.68, 0, .55, 19.8], [5.68, 0, .55, 19.8]].forEach(function (b) {
+      var rv = new T.Mesh(new T.BoxGeometry(b[2], b[3], 1.4), revealMat);
+      rv.position.set(wx + b[0], b[1], -20.7);
+      scene.add(rv);
+    });
+    /* 外框 4 条（凸出墙面） */
+    [[0, 9.35, 11.2, .6], [0, -9.35, 11.2, .6], [-5.5, 0, .6, 19.3], [5.5, 0, .6, 19.3]].forEach(function (b) {
+      var bar = new T.Mesh(new T.BoxGeometry(b[2], b[3], 1.1), wFrameMat);
+      bar.position.set(wx + b[0], b[1], -20.25);
+      scene.add(bar);
+    });
+    /* 中竖梃 + 两道横梃（2×3 格） */
+    var vm = new T.Mesh(new T.BoxGeometry(.44, 18.1, .9), wFrameMat);
+    vm.position.set(wx, 8, -20.3); scene.add(vm);
+    [-3.2, 3.2].forEach(function (yy) {
+      var hm = new T.Mesh(new T.BoxGeometry(10.4, .42, .9), wFrameMat);
+      hm.position.set(wx, 8 + yy, -20.3); scene.add(hm);
+    });
+    /* 窗台：石面窗台在窗下沿，窗"坐"在上面 */
+    var sill = new T.Mesh(new T.BoxGeometry(12.2, .75, 2.0), sillMat);
+    sill.position.set(wx, -1.45, -20.0);
+    sill.castShadow = true;
+    scene.add(sill);
+  });
+};
+
+/* ---------------- 实训车间 / 工位环境（职教线） ----------------
+   素质线用 K.envRoom()（实验室：白墙 + 黑板 + 试剂窗）。
+   职教设备（发动机 / 机械臂 / 产线 / 仪器）必须换车间：水泥地坪 + 油污 + 安全黄线、
+   波纹钢板墙 + 工业高窗 + 卷帘门、工具柜 / 洞洞板 / 油桶、厂房桁架顶灯。
+   调用后 envRoom 那套淡墙与试剂窗隐藏，两套互不影响。
+   可调：o.groundY（地面高度，默认 -15.5，与台架腿脚对齐） */
+K.envShop = function (o) {
+  o = o || {};
+  if (BGREF.wall) BGREF.wall.visible = false;
+  (BGREF.wins || []).forEach(function (m) { m.visible = false; });
+  var GY = (o.groundY === undefined) ? -15.5 : o.groundY;
+  var ZB = -21.2, SX = 76, H = 56;
+
+  /* 背景：车间天光（比实验室暗、偏冷，机器才立得住） */
+  var bc = document.createElement('canvas'); bc.width = 4; bc.height = 256;
+  var bx = bc.getContext('2d'), bg = bx.createLinearGradient(0, 0, 0, 256);
+  bg.addColorStop(0, o.top || '#ccd6de');
+  bg.addColorStop(.55, o.mid || '#aeb9c3');
+  bg.addColorStop(1, o.bot || '#8f9aa5');
+  bx.fillStyle = bg; bx.fillRect(0, 0, 4, 256);
+  scene.background = new T.CanvasTexture(bc);
+
+  /* ── 水泥地坪：颗粒 + 油污斑 + 裂缝（地面不能是纯色，否则台架像浮着） ── */
+  var floorTex = (function () {
+    var c = document.createElement('canvas'); c.width = c.height = 512;
+    var x = c.getContext('2d'), i, k, s, t;
+    x.fillStyle = '#787d83'; x.fillRect(0, 0, 512, 512);
+    for (i = 0; i < 9000; i++) {
+      var g = 96 + Math.floor(Math.random() * 48);
+      x.fillStyle = 'rgba(' + g + ',' + (g + 1) + ',' + (g + 4) + ',' + (.10 + Math.random() * .22).toFixed(2) + ')';
+      x.fillRect(Math.random() * 512, Math.random() * 512, 1 + Math.random() * 2.2, 1 + Math.random() * 2.2);
+    }
+    for (k = 0; k < 8; k++) {          /* 机油渍 */
+      var cx = Math.random() * 512, cy = Math.random() * 512, r = 20 + Math.random() * 54;
+      var rg = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+      rg.addColorStop(0, 'rgba(34,33,31,.34)');
+      rg.addColorStop(.55, 'rgba(44,43,41,.14)');
+      rg.addColorStop(1, 'rgba(44,43,41,0)');
+      x.fillStyle = rg; x.beginPath(); x.arc(cx, cy, r, 0, (Math.PI*2)); x.fill();
+    }
+    x.strokeStyle = 'rgba(52,52,50,.32)'; x.lineWidth = 1.2;
+    for (s = 0; s < 5; s++) {          /* 地面裂纹 */
+      var px = Math.random() * 512, py = Math.random() * 512;
+      x.beginPath(); x.moveTo(px, py);
+      for (t = 0; t < 5; t++) { px += (Math.random() - .5) * 58; py += (Math.random() - .5) * 58; x.lineTo(px, py); }
+      x.stroke();
+    }
+    var tt = new T.CanvasTexture(c);
+    tt.wrapS = tt.wrapT = T.RepeatWrapping; tt.repeat.set(16, 12);
+    tt.encoding = T.sRGBEncoding;
+    return tt;
+  })();
+  var floor = new T.Mesh(new T.PlaneGeometry(250, 180),
+    new T.MeshStandardMaterial({ color: 0x6c7278, roughness: .88, metalness: .03, map: floorTex }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, GY, -12);
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  /* ── 工位安全黄线（贴地细条，抬 0.02 防 z-fighting） ── */
+  var lineMat = new T.MeshStandardMaterial({ color: 0xd9b33e, roughness: .62, metalness: .05 });
+  [[0, -1, 78, .55], [0, 13, 78, .55], [-39, 6, .55, 14], [39, 6, .55, 14]].forEach(function (b) {
+    var ln = new T.Mesh(new T.PlaneGeometry(b[2], b[3]), lineMat);
+    ln.rotation.x = -Math.PI / 2;
+    ln.position.set(b[0], GY + .02, b[1]);
+    scene.add(ln);
+  });
+
+  /* ── 后墙：波纹钢板（竖棱要真几何，贴图假的近景会糊） ── */
+  var plateMat = new T.MeshStandardMaterial({ color: o.wall || 0x39434d, roughness: .78, metalness: .22, side: T.DoubleSide });
+  var back = new T.Mesh(new T.PlaneGeometry(250, H + 10), plateMat);
+  back.position.set(0, GY + (H + 10) / 2, ZB);
+  scene.add(back);
+  var ribMat = new T.MeshStandardMaterial({ color: 0x424c56, roughness: .7, metalness: .28 });
+  var x0, rib;
+  for (x0 = -118; x0 <= 118; x0 += 5.6) {
+    rib = new T.Mesh(new T.BoxGeometry(.92, H, .5), ribMat);
+    rib.position.set(x0, GY + H / 2, ZB + .34);
+    scene.add(rib);
+  }
+  /* 墙裙（下半墙深色带 + 分界压条） */
+  var skirtMat = new T.MeshStandardMaterial({ color: 0x3a444e, roughness: .82, metalness: .12 });
+  var skirt = new T.Mesh(new T.PlaneGeometry(250, 9), skirtMat);
+  skirt.position.set(0, GY + 4.5, ZB + .12);
+  scene.add(skirt);
+  var trimMat = new T.MeshStandardMaterial({ color: 0xc8b23f, roughness: .6 });
+  var trim = new T.Mesh(new T.BoxGeometry(250, .5, .5), trimMat);
+  trim.position.set(0, GY + 9.1, ZB + .3);
+  scene.add(trim);
+
+  /* ── 侧墙：砖墙（Canvas 砖缝贴图，只占 2 个面，成本极低） ── */
+  var brickTex = (function () {
+    var c = document.createElement('canvas'); c.width = 256; c.height = 256;
+    var x = c.getContext('2d');
+    x.fillStyle = '#8d5f4d'; x.fillRect(0, 0, 256, 256);
+    var bw = 64, bh = 26, row = 0, y, i2;
+    for (y = 0; y < 256; y += bh, row++) {
+      for (i2 = -1; i2 < 5; i2++) {
+        var bxx = i2 * bw + (row % 2 ? bw / 2 : 0) + 1;
+        var v = 118 + Math.floor(Math.random() * 34);
+        x.fillStyle = 'rgb(' + v + ',' + Math.floor(v * .68) + ',' + Math.floor(v * .55) + ')';
+        x.fillRect(bxx, y + 1, bw - 2, bh - 2);
+      }
+    }
+    x.globalAlpha = .10; x.fillStyle = '#000';
+    for (i2 = 0; i2 < 160; i2++) x.fillRect(Math.random() * 256, Math.random() * 256, 3, 2);
+    var t = new T.CanvasTexture(c);
+    t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(7, 4);
+    t.encoding = T.sRGBEncoding;
+    return t;
+  })();
+  var brickMat = new T.MeshStandardMaterial({ color: 0x8b8078, roughness: .92, metalness: 0, map: brickTex, side: T.DoubleSide });
+  [-1, 1].forEach(function (sg) {
+    var sw = new T.Mesh(new T.PlaneGeometry(180, H + 10), brickMat);
+    sw.position.set(sg * SX, GY + (H + 10) / 2, -12);
+    sw.rotation.y = -sg * Math.PI / 2;
+    scene.add(sw);
+  });
+
+  /* ── 卷帘门（后墙中央）：横向瓦楞 + 导轨 + 底梁，一眼就是车间 ── */
+  var doorW = 44, doorH = 34, nSlat = 12, slatH = doorH / nSlat;
+  var slatMat = new T.MeshStandardMaterial({ color: 0x566069, roughness: .46, metalness: .62, envMapIntensity: 1.1 });
+  var i3;
+  for (i3 = 0; i3 < nSlat; i3++) {
+    var sl = new T.Mesh(new T.BoxGeometry(doorW, slatH * .92, .9), slatMat);
+    sl.position.set(0, GY + slatH * (i3 + .5), ZB + .85);
+    sl.castShadow = true;
+    scene.add(sl);
+  }
+  [-1, 1].forEach(function (sg) {
+    var rail = new T.Mesh(new T.BoxGeometry(1.6, doorH + 2.4, 1.5), ribMat);
+    rail.position.set(sg * (doorW / 2 + .8), GY + (doorH + 2.4) / 2, ZB + .9);
+    scene.add(rail);
+  });
+  var dHead = new T.Mesh(new T.BoxGeometry(doorW + 4, 3.2, 3.2), ribMat);
+  dHead.position.set(0, GY + doorH + 1.6, ZB + 1.2); scene.add(dHead);
+  var dBot = new T.Mesh(new T.BoxGeometry(doorW, .9, 1.4), ribMat);
+  dBot.position.set(0, GY + .45, ZB + .95); scene.add(dBot);
+
+  /* ── 工业高窗 ×4（钢窗，冷白采光；位置避开卷帘门） ── */
+  var skyMat = new T.MeshBasicMaterial({ color: 0xdce9f4 });
+  var winFrame = new T.MeshStandardMaterial({ color: 0x3e4a56, roughness: .55, metalness: .45 });
+  var winGlass = new T.MeshPhysicalMaterial({
+    color: 0xcfe3f2, roughness: .08, metalness: 0, transparent: true, opacity: .34,
+    envMapIntensity: 1.2, side: T.DoubleSide, depthWrite: false
+  });
+  [-46, -24, 24, 46].forEach(function (wx) {
+    var ww = 17, wh = 13, wy = GY + 34;
+    var sky = new T.Mesh(new T.PlaneGeometry(ww, wh), skyMat);
+    sky.position.set(wx, wy, ZB + .06); scene.add(sky);
+    var gl = new T.Mesh(new T.PlaneGeometry(ww - .6, wh - .6), winGlass);
+    gl.position.set(wx, wy, ZB + .5); scene.add(gl);
+    [[0, wh / 2, ww + 1.2, .8], [0, -wh / 2, ww + 1.2, .8], [-ww / 2, 0, .8, wh + 1.2], [ww / 2, 0, .8, wh + 1.2],
+     [0, 0, ww + .4, .5], [0, 0, .5, wh]].forEach(function (b) {
+      var bar = new T.Mesh(new T.BoxGeometry(b[2], b[3], .7), winFrame);
+      bar.position.set(wx + b[0], wy + b[1], ZB + .7);
+      scene.add(bar);
+    });
+    var sill = new T.Mesh(new T.BoxGeometry(ww + 2.4, .6, 1.8), winFrame);
+    sill.position.set(wx, wy - wh / 2 - .7, ZB + .9);
+    scene.add(sill);
+  });
+
+  /* ── 工具柜 ×3 + 洞洞板挂具（洞洞板在门左侧） ── */
+  var cabMat = new T.MeshStandardMaterial({ color: 0x1c2f3e, roughness: .5, metalness: .34, envMapIntensity: .9 });
+  var drawMat = new T.MeshStandardMaterial({ color: 0x274156, roughness: .44, metalness: .4 });
+  var handleMat = new T.MeshStandardMaterial({ color: 0x8b939b, roughness: .38, metalness: .8 });
+  [-30, -14, 2].forEach(function (cx) {
+    var w = 13, h = 15, d = 9;
+    var body = new T.Mesh(new T.BoxGeometry(w, h, d), cabMat);
+    body.position.set(cx, GY + h / 2, ZB + 5.0); body.castShadow = true; scene.add(body);
+    for (var r2 = 0; r2 < 4; r2++) {
+      var dr = new T.Mesh(new T.BoxGeometry(w - 1.2, h / 4 - 1.1, .5), drawMat);
+      dr.position.set(cx, GY + 2.2 + r2 * (h / 4), ZB + 5.0 + d / 2);
+      scene.add(dr);
+      var hd = new T.Mesh(new T.BoxGeometry(w - 4.4, .55, .4), handleMat);
+      hd.position.set(cx, GY + 2.2 + r2 * (h / 4) + 1.1, ZB + 5.0 + d / 2 + .35);
+      scene.add(hd);
+    }
+  });
+  /* 洞洞板 + 挂着的扳手（职教工位的"身份物"） */
+  var pegMat = new T.MeshStandardMaterial({ color: 0x505a64, roughness: .72, metalness: .3 });
+  var peg = new T.Mesh(new T.BoxGeometry(20, 11, .5), pegMat);
+  peg.position.set(-50, GY + 20, ZB + .55); scene.add(peg);
+  for (var pw = 0; pw < 5; pw++) {
+    var wx2 = -58 + pw * 4.0;
+    var wr = new T.Mesh(new T.BoxGeometry(1.0, 6 + (pw % 2) * 1.8, .45), handleMat);
+    wr.position.set(wx2, GY + 20, ZB + .95); scene.add(wr);
+    var wh = new T.Mesh(new T.CylinderGeometry(.85, .85, .45, 12), handleMat);
+    wh.rotation.x = Math.PI / 2; wh.position.set(wx2, GY + 20 + (3.3 + (pw % 2) * .9), ZB + .95);
+    scene.add(wh);
+  }
+
+  /* ── 油桶 ×2（地上，给尺度参照） ── */
+  var drumMat = new T.MeshStandardMaterial({ color: 0x143f66, roughness: .52, metalness: .45, envMapIntensity: .9 });
+  var rimMat = new T.MeshStandardMaterial({ color: 0x9aa4ac, roughness: .4, metalness: .8 });
+  [[42, 8], [47.5, 12.5]].forEach(function (p, idx) {
+    var dm = new T.Mesh(new T.CylinderGeometry(3.1, 3.1, 9.2, 22), idx ? drumMat.clone() : drumMat);
+    if (idx) dm.material.color.setHex(0x8c3a2f);
+    dm.position.set(p[0], GY + 4.6, p[1]); dm.castShadow = true; scene.add(dm);
+    [-2.6, 2.6].forEach(function (yy) {
+      var rr = new T.Mesh(new T.TorusGeometry(3.12, .22, 6, 20), rimMat);
+      rr.rotation.x = Math.PI / 2; rr.position.set(p[0], GY + 4.6 + yy, p[1]);
+      scene.add(rr);
+    });
+  });
+
+  /* ── 厂房桁架 + 工业吊灯（顶上有东西，才像厂房不是空盒） ── */
+  var trussMat = new T.MeshStandardMaterial({ color: 0x333c45, roughness: .6, metalness: .5 });
+  [-1, 1].forEach(function (sg) {
+    var tr = new T.Mesh(new T.BoxGeometry(250, 1.4, 1.4), trussMat);
+    tr.position.set(0, GY + 56, sg * 10);
+    scene.add(tr);
+  });
+  var shadeMat = new T.MeshStandardMaterial({ color: 0x6a7783, roughness: .45, metalness: .55, side: T.DoubleSide, emissive: 0x4a5259, emissiveIntensity: .7 });
+  var bulbMat = new T.MeshBasicMaterial({ color: new T.Color(0xfff3d8).multiplyScalar(1.9) });
+  [-20, 20].forEach(function (lx) {
+    var rod = new T.Mesh(new T.CylinderGeometry(.22, .22, 9, 8), trussMat);
+    rod.position.set(lx, GY + 50.5, 0); scene.add(rod);
+    var shade = new T.Mesh(new T.CylinderGeometry(3.4, 1.8, 2.6, 20, 1, true), shadeMat);
+    shade.position.set(lx, GY + 45.6, 0); scene.add(shade);
+    var bulb = new T.Mesh(new T.CircleGeometry(2.0, 18), bulbMat);
+    bulb.rotation.x = Math.PI / 2; bulb.position.set(lx, GY + 44.2, 0); scene.add(bulb);
+    var pl = new T.PointLight(0xffeccd, .55, 90, 2);
+    pl.position.set(lx, GY + 43, 0); scene.add(pl);
+  });
+
+  /* ── 后墙横贯的镀锌管道 + 吊架 ── */
+  var pipeMat = new T.MeshStandardMaterial({ color: 0xa6aeb5, roughness: .42, metalness: .78, envMapIntensity: 1.1 });
+  [GY + 52, GY + 49.4].forEach(function (py, pi) {
+    var pipe = new T.Mesh(new T.CylinderGeometry(pi ? .7 : 1.1, pi ? .7 : 1.1, 240, 14), pipeMat);
+    pipe.rotation.z = Math.PI / 2; pipe.position.set(0, py, ZB + 2.4); scene.add(pipe);
+  });
+  for (var hx = -110; hx <= 110; hx += 28) {
+    var hg = new T.Mesh(new T.BoxGeometry(.7, 6.5, .7), trussMat);
+    hg.position.set(hx, GY + 54.4, ZB + 2.4); scene.add(hg);
+  }
+};
+
 K.bench = function (w, d) {
   w = w || 60; d = d || 34;
   var g = new T.Group();
@@ -1536,9 +1967,10 @@ function setupPostfx() {
   /* SSAOPass 自己渲染场景（含 AO 合成），有它就不再加 RenderPass，避免重复渲染 */
   if (T.SSAOPass) {
     ssaoPass = new T.SSAOPass(scene, camera, W * DPR, H * DPR);
-    ssaoPass.kernelRadius = 14;
-    ssaoPass.minDistance = 0.0012;
-    ssaoPass.maxDistance = 0.14;
+    var so = (cfg && cfg.ssao) || {};
+    ssaoPass.kernelRadius = so.kernelRadius || 14;
+    ssaoPass.minDistance = so.minDistance || 0.0012;
+    ssaoPass.maxDistance = so.maxDistance || 0.14;
     ssaoPass.output = T.SSAOPass.OUTPUT.Default;
     composer.addPass(ssaoPass);
   } else {
@@ -1604,7 +2036,9 @@ function boot(c) {
   ui.prev.onclick = function () { goStep(stepIdx - 1); };
   ui.next.onclick = function () { goStep(stepIdx + 1); };
   document.getElementById('resetView').onclick = function () {
-    Object.assign(cam, CAM0);
+    /* 有逐步机位就飞回本步机位；没有就回到开课时的手动机位 */
+    if (curStepCam) flyTo(curStepCam, .55);
+    else { camTween = null; Object.assign(cam, CAM0); }
   };
 
   bindPointer();
@@ -1641,6 +2075,11 @@ function goStep(i) {
     if (typeof state[k] === 'number') before[k] = state[k];
   });
   if (s.apply) s.apply(state);
+  /* 逐步机位：步骤里写 cam:{...} 就平滑推过去；没写就沿用当前视角。
+     用户一旦拖动/滚轮，补间立即中断，控制权交还给人。 */
+  if (s.cam) flyTo(s.cam, s.camDur);
+  else camTween = null;
+  curStepCam = s.cam || null;
   saveProgress(stepIdx, stepIdx === cfg.steps.length - 1);
   state.__ramps = [];
   Object.keys(before).forEach(function (k) {
@@ -1764,6 +2203,7 @@ var drag = null;
 
 function bindPointer() {
   cv.addEventListener('pointerdown', function (e) {
+    camTween = null;
     var r = cv.getBoundingClientRect();
     drag = { x: e.clientX - r.left, y: e.clientY - r.top, yaw: cam.yaw, pitch: cam.pitch };
     cv.setPointerCapture(e.pointerId);
@@ -1778,7 +2218,9 @@ function bindPointer() {
   cv.addEventListener('pointercancel', function () { drag = null; });
   cv.addEventListener('wheel', function (e) {
     e.preventDefault();
-    cam.dist = Math.max(30, Math.min(260, cam.dist + e.deltaY * .12));
+    camTween = null;
+    /* 全局缩放：8 可贴近看门缝/仪表台，320 拉到全厂鸟瞰。30 的下限是「只能看产线」，太死 */
+    cam.dist = Math.max(8, Math.min(320, cam.dist + e.deltaY * .14));
   }, { passive: false });
 }
 
@@ -1789,6 +2231,24 @@ function updateCamera() {
     cam.ty + cam.dist * sp,
     cam.tz + cam.dist * cp * Math.cos(cam.yaw));
   camera.lookAt(cam.tx, cam.ty, cam.tz);
+}
+
+/* 逐步机位补间：只补步骤里给出的字段，其余保持当前值 */
+function flyTo(to, dur) {
+  var from = {};
+  Object.keys(to).forEach(function (k) { if (k in cam) from[k] = cam[k]; });
+  camTween = { from: from, to: to, t: 0, dur: dur || .9 };
+}
+
+function updateCamTween(dt) {
+  if (!camTween) return;
+  var tw = camTween;
+  tw.t = Math.min(1, tw.t + dt / tw.dur);
+  var e = tw.t < .5 ? 4 * tw.t * tw.t * tw.t : 1 - Math.pow(-2 * tw.t + 2, 3) / 2;
+  Object.keys(tw.to).forEach(function (k) {
+    cam[k] = tw.from[k] + (tw.to[k] - tw.from[k]) * e;
+  });
+  if (tw.t >= 1) camTween = null;
 }
 
 function updateFlames(dt) {
@@ -1812,17 +2272,29 @@ function updateFlames(dt) {
 }
 
 var v3tmp = null;
+var _lblW = -1, _safeR = 6;
 
 function updateLabels() {
   if (!v3tmp) v3tmp = new T.Vector3();
+  /* 右侧讲解面板会盖住画面：标注先落在可视安全区内，再交给 CSS。
+     面板位置只在窗口尺寸变化时量一次，避免每帧强制布局。 */
+  if (W !== _lblW) {
+    _lblW = W;
+    var asideEl = W > 1100 ? document.querySelector('aside') : null;
+    _safeR = asideEl ? Math.max(0, W - asideEl.getBoundingClientRect().left + 8) : 6;
+  }
   for (var i = 0; i < labels.length; i++) {
     var L = labels[i];
     v3tmp.copy(L.p).project(camera);
     var x = (v3tmp.x * .5 + .5) * W + L.dx;
     var y = (-v3tmp.y * .5 + .5) * H + L.dy;
     var vis = v3tmp.z < 1;
-    L.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
     L.el.style.display = vis ? 'block' : 'none';
+    if (!vis) continue;
+    if (!L.lw) { L.lw = L.el.offsetWidth || 56; L.lh = L.el.offsetHeight || 18; }
+    x = Math.max(6, Math.min(W - _safeR - L.lw, x));
+    y = Math.max(58, Math.min(H - L.lh - 8, y));
+    L.el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
   }
 }
 
@@ -1832,6 +2304,7 @@ function loop(t) {
   lastT = t;
   NOW = t / 1000;
   updateTween(dt);
+  updateCamTween(dt);
   if (cfg.scene && cfg.scene.update) cfg.scene.update(dt, state);
   updateRamps(dt);
   K.updateMoves(dt);
@@ -2177,6 +2650,7 @@ K.shaderFlame = function (o) {
 K.boot = boot;
 K.T = function () { return T; };
 K.scene = function () { return scene; };
+K.world = function () { return world; };   /* 课件对象根节点：拾取(pick)/标注都挂在这里，方便新课件直接分组挂载 */
 K.M = function () { return M; };
 K.clamp = function (v, a, b) { return v < a ? a : v > b ? b : v; };
 K.lerp = function (a, b, t) { return a + (b - a) * t; };

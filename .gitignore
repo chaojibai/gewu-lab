@@ -1,14 +1,19 @@
-# 依赖与构建产物
+# 依赖与验证产物（本地即可，不入库）
 node_modules/
-__pycache__/
-*.pyc
-*.log
-
-# 截图与临时产物
-*.png
-!docs/*.png
-!robot-glb-sim/demo/preview/*.png
 shots/
-dist/
-.DS_Store
+
+# 工作区内部数据（默认忽略，但放行项目级 skill）
+.workbuddy/*
+!.workbuddy/skills/
+!.workbuddy/skills/skill-virtue/
+# 本机 skill 用目录联接注册，实际内容在仓库 vocational-3d/，不要重复入库
+.workbuddy/skills/vocational-3d/
+
+# 备份文件
+*.bak
+*.tmp
+.claude/
+
+# 系统文件
 Thumbs.db
+Desktop.ini

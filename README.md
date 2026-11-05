@@ -89,9 +89,19 @@ threejs-lab-courseware/
 │   ├── check.js                      # 报错扫描
 │   ├── pick.js                       # 帧缓冲像素取样
 │   └── inline_build.py               # 多文件内联成单文件 HTML
+├── vocational-3d/                    # ★ 子技能：职业教育设备 3D 课件线（独立技能）
+│   ├── SKILL.md                      # 入口：五步流水线 / 三条不可妥协 / 性能预算
+│   ├── references/                   # 01 管线 · 02 实训车间场景 · 03 整机剖切建模法
+│   │                                 # 04 机构运动 · 05 交互与教学 · 06 验证 · 07 本线坑表
+│   ├── templates/                    # lesson-scaffold.js（可改名开工）+ checklist.md（交付自检）
+│   └── examples/                     # 样板索引：直列四缸汽油机
+├── robot-glb-sim/                    # 子技能：真实 CAD .glb 可操纵机械臂仿真
 └── examples/
     └── peizhi-step.js                # 完整示例：《配制一定溶质质量分数的溶液》
 ```
+
+> **两条线已分流**：科普/素养类走本 README 与 `SKILL.md`；
+> 实训/设备/拆装/精模类走 `vocational-3d/SKILL.md`（场景、剖切、验收标准完全不同，不要混用）。
 
 ---
 
