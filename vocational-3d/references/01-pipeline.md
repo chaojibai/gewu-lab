@@ -172,6 +172,10 @@ node build/wc-views.js courses/engine4-step.html engine4 0       # 七机位（�
 `inline_build.py` 不注入（`kit3d.js` 的 `setupPostfx()` 有 `if (!T.EffectComposer) return;` 兜底，不会报错，只是画面更平）。
 交付前请用**工作区路径**构建，截图与调色都以它为准。
 
+> 后处理（SSAO/Bloom/ACES）的文件取自 `node_modules/three/examples/js`。**新机器先 `npm i three@0.147.0`**，
+> 否则 `build_chem.py` 会静默跳过 postfx（`POSTFX=''`）——不报错，但画面明显偏平，别以为是材质没调好。
+> `assets/vendor/` 里只有 three 本体（UMD），不含 addons。
+
 截图脚本必须带 `channel: 'chrome'` 与 `--use-angle=d3d11`。SwiftShader 软渲染下 PMREM 环境贴图出不来，金属全发灰——**你会据此把好材质改坏**。
 
 ## 7. 资产来源与轻量工具链（不下载大部头）
