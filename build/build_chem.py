@@ -4,12 +4,24 @@ import json
 import re
 from pathlib import Path
 
-BASE = Path(r'D:\360MoveData\Users\Lenovo\Documents\默认项目\格物实验室')
+BASE = Path(__file__).resolve().parent.parent
 BUILD = BASE / 'build'
+ASSETS = BASE / 'assets'
 COURSES = BASE / 'courses'
 LESSONS = BUILD / 'lessons3d'
-THREE = (BUILD / 'vendor' / 'three.min.js').read_text(encoding='utf-8')
-SIM = (BUILD / 'sim.js').read_text(encoding='utf-8')
+
+
+def asset(rel, alt=None):
+    """读引擎/模板：优先 build/ 的工作副本，缺失时回落 assets/ 分发源，
+    这样 clone 下来（build/ 里只有课件源码）也能直接构建。"""
+    p = BUILD / rel
+    if p.exists():
+        return p.read_text(encoding='utf-8')
+    return (ASSETS / (alt or rel)).read_text(encoding='utf-8')
+
+
+THREE = asset('vendor/three.min.js')
+SIM = asset('sim.js')
 
 # 后期处理（仅按需注入）：r147 的 UMD addons，挂在全局 THREE 上
 _EX = BUILD.parent / 'node_modules' / 'three' / 'examples' / 'js'
@@ -135,9 +147,9 @@ ART = {
 
 
 def build_pages(only=None):
-    page = (BUILD / '_page.html').read_text(encoding='utf-8')
-    css = (BUILD / 'style.css').read_text(encoding='utf-8')
-    kit = (BUILD / 'kit3d.js').read_text(encoding='utf-8')
+    page = asset('_page.html', 'page.html')
+    css = asset('style.css')
+    kit = asset('kit3d.js')
     made = []
     for slug in ORDER:
         if only and slug not in only:
