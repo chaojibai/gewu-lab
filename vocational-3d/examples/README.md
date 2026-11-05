@@ -28,14 +28,19 @@
 # 1. 复制骨架
 cp vocational-3d/templates/lesson-scaffold.js build/lessons3d/<slug>.js
 
-# 2. 在 build/build_chem.py 的 META / ORDER / ART 里注册 <slug>
-#    职教课件记得 catalog=False
+# 2. 在 build/build_chem.py 的 META / ORDER / ART 里注册 <slug>（职教课件记得 catalog=False）
 
 # 3. 改 buildDevice() 里的几何，改各步的 title / body / ask
 
-# 4. 构建 + 截图
+# 4. 构建 + 截图（工作区路径，带后处理）
 python build/build_chem.py <slug>
 node build/shot-page.js courses/<slug>.html <slug> 1800
+
+# 只拿到 assets/、没有 build_chem.py 时，走通用内联（无后处理）
+python scripts/inline_build.py --template assets/page.html \
+  --three assets/vendor/three.min.js --engine assets/kit3d.js \
+  --lesson build/lessons3d/<slug>.js --sim assets/sim.js \
+  --out courses/<slug>.html --title "标题" --chip "职业教育 · 工种 · 设备"
 ```
 
 对照本样板时优先看三处：

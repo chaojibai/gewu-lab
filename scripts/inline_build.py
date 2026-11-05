@@ -7,7 +7,7 @@
         --title "制取氧气" --chip "化学 · 九年级 · 课题3"
 
 模板里需要这些占位符：{{CSS}} {{THREE}} {{SIM}} {{KIT}} {{LESSON}} {{TITLE}} {{CHIP}}
-（{{SIM}} 是模型层 sim.js，没有就传空）
+（{{SIM}} 是模型层 sim.js，{{GLTF}} 是 GLTFLoader 等额外脚本，没有就传空）
 """
 import argparse, pathlib, re
 
@@ -21,6 +21,8 @@ def main():
     ap.add_argument('--engine', required=True)
     ap.add_argument('--lesson', required=True)
     ap.add_argument('--sim', default='')
+    ap.add_argument('--gltf', default='', help='GltfLoader 等额外脚本（可选，对应模板 {{GLTF}}）')
+    ap.add_argument('--css', default='', help='面板样式（可选，默认取模板同目录的 style.css）')
     ap.add_argument('--out', required=True)
     ap.add_argument('--title', default='')
     ap.add_argument('--chip', default='')
@@ -29,7 +31,8 @@ def main():
     html = read(a.template)
     for key, val in {
         '{{THREE}}': read(a.three), '{{KIT}}': read(a.engine),
-        '{{LESSON}}': read(a.lesson), '{{SIM}}': read(a.sim),
+        '{{LESSON}}': read(a.lesson), '{{SIM}}': read(a.sim), '{{GLTF}}': read(a.gltf),
+        '{{CSS}}': read(a.css) if a.css else read(pathlib.Path(a.template).parent / 'style.css'),
         '{{TITLE}}': a.title, '{{CHIP}}': a.chip,
     }.items():
         html = html.replace(key, val)

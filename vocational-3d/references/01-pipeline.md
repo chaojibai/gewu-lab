@@ -152,11 +152,25 @@ function plateGeo(w, d, thk, holes) {
 ## 6. 构建与自检命令
 
 ```bash
-python build/build_chem.py engine4-step        # 单课构建，打印字节数
+# 构建（工作区路径：带 postfx 后处理）
+python build/build_chem.py engine4-step
+
+# 构建（通用路径：只有 assets 时用，无后处理）
+python scripts/inline_build.py \
+  --template assets/page.html --three assets/vendor/three.min.js \
+  --engine assets/kit3d.js --lesson build/lessons3d/engine4-step.js \
+  --sim assets/sim.js --out courses/engine4-step.html \
+  --title "直列四缸四冲程汽油机" --chip "职业教育 · 发动机"
+
+# 验证
 node build/shot-page.js courses/engine4-step.html engine4 1800   # 逐步骤截图 + 报错
 node build/check-quick.js courses/engine4-step.html              # 九步遍历，抓 pageerror
 node build/wc-views.js courses/engine4-step.html engine4 0       # 七机位（近景/俯视/侧视）
 ```
+
+两条构建路径的差别只有后处理：`build_chem.py` 按 META 的 `postfx=True` 注入 SSAO/Bloom/ACES；
+`inline_build.py` 不注入（`kit3d.js` 的 `setupPostfx()` 有 `if (!T.EffectComposer) return;` 兜底，不会报错，只是画面更平）。
+交付前请用**工作区路径**构建，截图与调色都以它为准。
 
 截图脚本必须带 `channel: 'chrome'` 与 `--use-angle=d3d11`。SwiftShader 软渲染下 PMREM 环境贴图出不来，金属全发灰——**你会据此把好材质改坏**。
 

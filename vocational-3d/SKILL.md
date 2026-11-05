@@ -107,11 +107,29 @@ node build/check-quick.js courses/<slug>.html           # 九步遍历
 
 ```
 build/lessons3d/<slug>.js     ← 你写的课件（几何 + 运动 + 步骤）
-build/build_chem.py           ← 组装器（META 注册 slug → 注入 → 内联 three）
+build/build_chem.py           ← 组装器（META 注册 slug → 注入 → 内联 three + 可选后处理）
 courses/<slug>.html           ← 交付物（单文件，断网可用）
 ```
 
-> 仓库若有 `assets/` 与 `build/` 两份引擎，以 `assets/` 为分发源、`build/` 为工作副本；改引擎先改 `build/kit3d.js` 验证，再同步回 `assets/kit3d.js`。
+**两条构建路径**，按场合选：
+
+```bash
+# A. 工作区构建（推荐）：自动注入 postfx（SSAO+Bloom+ACES）、目录页、META 注册
+#    先在 build/build_chem.py 的 META / ORDER / ART 里注册 slug
+python build/build_chem.py <slug>
+
+# B. 通用内联（换机器/只拿到 assets 时）：不注入后处理，页面更平，但零依赖
+python scripts/inline_build.py \
+  --template assets/page.html --three assets/vendor/three.min.js \
+  --engine assets/kit3d.js --lesson build/lessons3d/<slug>.js \
+  --sim assets/sim.js --out courses/<slug>.html \
+  --title "标题" --chip "职业教育 · 工种 · 设备"
+```
+
+> `assets/` 与 `build/` 各有一份 `kit3d.js / page.html / style.css / sim.js`：
+> `assets/` 是**分发源**（用户 `cp -r assets ~/.workbuddy/skills/...`），`build/` 是**工作副本**。
+> 改引擎先改 `build/` 验证，**改完必须 `cp` 回 `assets/`**，否则装到别处的人拿不到新 API
+> （典型事故：文档写了 `K.envShop()`，`assets/kit3d.js` 里没有）。
 
 课件与引擎的唯一契约：
 

@@ -9,6 +9,11 @@ shots/
 # 本机 skill 用目录联接注册，实际内容在仓库 vocational-3d/，不要重复入库
 .workbuddy/skills/vocational-3d/
 
+# .glb 课件资产与 GLTF 加载器（属本地工作区，不进仓库）
+build/assets/
+build/vendor/GLTFExporter.js
+build/vendor/GLTFLoader.js
+
 # 备份文件
 *.bak
 *.tmp
