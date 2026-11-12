@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>make cncmill shell glb · MX-4LW 真机外形</title>
+<style>html,body{margin:0;background:#111;color:#ccc;font:13px monospace}</style>
+</head>
+<body>
+<div id="log" style="padding:8px"></div>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFExporter.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   MX-4LW 炮塔铣床外壳 GLB（按「主要技术参数图解」实物照重做，第四轮）
+   ─────────────────────────────────────────────────────────────────────
+   旧版是「一堆圆角长方体」，看着像玩具。实物照里真正决定像不像的六件事：
+   ① 白色护罩横梁上有【两个大圆角矩形镂空窗】，中间一条蓝竖梁；
+      左窗白衬板、右窗黑色风琴防护罩 —— 这一条最关键。
+   ② 立柱在【后】方（灰色高柱 + 深蓝电气柜），前方是蓝色圆柱立柱座；
+      顶部一根灰色滑枕 ram 水平伸出来托住炮塔。旧版把立柱做成整块方块顶到天。
+   ③ 蓝色扁平大接屑盘 + 翻边，下面才是较小的灰色铸铁底座。
+   ④ 工作台细长、薄，顶面三条【真 T 形槽】（槽口收窄、槽底宽），不是黑贴条。
+   ⑤ 机头前盖不是一整块白门，而是一块小铭牌板；深蓝多段铸件 + 前置套筒壳。
+   ⑥ 主电机是光滑深蓝圆柱（银色铭牌 + 底部银环），没有外凸散热翅片。
+   网格名 MAT_<键>__<部件>，课件侧 adoptShell 按节点名换材质并挂到动画组：
+   knee / saddle / table / turret / tilt / colCover / kneeCover / headCover
+   ═══════════════════════════════════════════════════════════════════ */
+var T = window.THREE, PI = Math.PI;
+window.__GLB_NODES = []; window.__GLB_DONE = false; window.__GLB_ERR = '';
+function log(s) { var d = document.getElementById('log'); d.innerHTML += s + '<br>'; }
+
+var GROUND = -15.5;
+
+/* ── 基础几何：圆角板挤出（带 bevel，棱边吃得住光） ── */
+function slab(w, h, d, r, bev) {
+  var b = Math.min(bev == null ? .06 : bev, Math.min(w, h) * .2, d * .3);
+  var rr = Math.min(r == null ? .18 : r, Math.min(w, h) / 2 - .02);
+  var s = new T.Shape();
+  var x0 = -w / 2, y0 = -h / 2;
+  s.moveTo(x0 + rr, y0);
+  s.lineTo(x0 + w - rr, y0); s.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + rr);
+  s.lineTo(x0 + w, y0 + h - rr); s.quadraticCurveTo(x0 + w, y0 + h, x0 + w - rr, y0 + h);
+  s.lineTo(x0 + rr, y0 + h); s.quadraticCurveTo(x0, y0 + h, x0, y0 + h - rr);
+  s.lineTo(x0, y0 + rr); s.quadraticCurveTo(x0, y0, x0 + rr, y0);
+  var g = new T.ExtrudeGeometry(s, {
+    depth: Math.max(.01, d - 2 * b), bevelEnabled: true,
+    bevelSize: b, bevelThickness: b, bevelSegments: 2, curveSegments: 5, steps: 1
+  });
+  g.translate(0, 0, -(d - 2 * b) / 2);
+  g.computeVertexNormals();
+  return g;
+}
+function vbody(w, d, h, r, bev) {
+  var g = slab(w, d, h, r, bev);
+  g.rotateX(-PI / 2);
+  return g;
+}
+/* 圆角矩形路径：cw=true 用于挖孔（与外轮廓反向） */
+function rrect(p, w, h, r, cw, cx, cy) {
+  cx = cx || 0; cy = cy || 0;
+  var x0 = cx - w / 2, y0 = cy - h / 2, x1 = cx + w / 2, y1 = cy + h / 2;
+  r = Math.min(r, Math.min(w, h) / 2 - .01);
+  if (!cw) {
+    p.moveTo(x0 + r, y0);
+    p.lineTo(x1 - r, y0); p.quadraticCurveTo(x1, y0, x1, y0 + r);
+    p.lineTo(x1, y1 - r); p.quadraticCurveTo(x1, y1, x1 - r, y1);
+    p.lineTo(x0 + r, y1); p.quadraticCurveTo(x0, y1, x0, y1 - r);
+    p.lineTo(x0, y0 + r); p.quadraticCurveTo(x0, y0, x0 + r, y0);
+  } else {
+    p.moveTo(x0 + r, y0);
+    p.quadraticCurveTo(x0, y0, x0, y0 + r);
+    p.lineTo(x0, y1 - r); p.quadraticCurveTo(x0, y1, x0 + r, y1);
+    p.lineTo(x1 - r, y1); p.quadraticCurveTo(x1, y1, x1, y1 - r);
+    p.lineTo(x1, y0 + r); p.quadraticCurveTo(x1, y0, x1 - r, y0);
+    p.lineTo(x0 + r, y0);
+  }
+  return p;
+}
+/* 带圆角矩形镂空窗的框板（护罩正面） */
+function framePlate(w, h, d, r, holes, bev) {
+  var s = new T.Shape(); rrect(s, w, h, r, false, 0, 0);
+  for (var i = 0; i < holes.length; i++) {
+    var ho = holes[i], p2 = new T.Path();
+    rrect(p2, ho.w, ho.h, ho.r == null ? .5 : ho.r, true, ho.x, ho.y);
+    s.holes.push(p2);
+  }
+  var b = Math.min(bev == null ? .05 : bev, d * .3);
+  var g = new T.ExtrudeGeometry(s, {
+    depth: Math.max(.01, d - 2 * b), bevelEnabled: true,
+    bevelSize: b, bevelThickness: b, bevelSegments: 2, curveSegments: 8, steps: 1
+  });
+  g.translate(0, 0, -(d - 2 * b) / 2);
+  g.computeVertexNormals();
+  return g;
+}
+/* 上角斜切的端盖（实物照左右两个白色箱盖，上外侧是斜角） */
+function chamferPlate(w, h, d, cut, leftCut) {
+  var s = new T.Shape(), x0 = -w / 2, x1 = w / 2, y0 = -h / 2, y1 = h / 2;
+  if (leftCut) {
+    s.moveTo(x0 + cut, y0); s.lineTo(x1, y0); s.lineTo(x1, y1);
+    s.lineTo(x0, y1); s.lineTo(x0, y0 + cut);
+  } else {
+    s.moveTo(x0, y0); s.lineTo(x1, y0); s.lineTo(x1, y1 - cut);
+    s.lineTo(x1 - cut, y1); s.lineTo(x0, y1);
+  }
+  s.closePath();
+  var b = Math.min(.06, d * .28);
+  var g = new T.ExtrudeGeometry(s, {
+    depth: Math.max(.01, d - 2 * b), bevelEnabled: true,
+    bevelSize: b, bevelThickness: b, bevelSegments: 2, curveSegments: 4, steps: 1
+  });
+  g.translate(0, 0, -(d - 2 * b) / 2);
+  g.computeVertexNormals();
+  return g;
+}
+/* 顶点色：下脏上净 + 轻噪声（乘算，不参与配色） */
+function paintVerts(g, yBot, yTop, dirt) {
+  var pos = g.attributes.position, n = pos.count;
+  var col = new Float32Array(n * 3);
+  var y0 = yBot == null ? -10 : yBot, y1 = yTop == null ? 20 : yTop;
+  var k0 = dirt == null ? .62 : dirt;
+  for (var i = 0; i < n; i++) {
+    var y = pos.getY(i);
+    var t = Math.max(0, Math.min(1, (y - y0) / Math.max(.001, y1 - y0)));
+    var v = k0 + (1 - k0) * Math.pow(t, .55);
+    v *= .94 + Math.random() * .12;
+    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = Math.max(.35, Math.min(1, v));
+  }
+  g.setAttribute('color', new T.BufferAttribute(col, 3));
+  return g;
+}
+function mesh(g, key, name, x, y, z) {
+  var m = new T.Mesh(g, new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5, metalness: .1 }));
+  m.name = 'MAT_' + key + '__' + name;
+  m.position.set(x || 0, y || 0, z || 0);
+  window.__GLB_NODES.push(m.name);
+  return m;
+}
+function grp(name, x, y, z) {
+  var g = new T.Group(); g.name = name; g.position.set(x || 0, y || 0, z || 0);
+  window.__GLB_NODES.push(name); return g;
+}
+function painted(geo, key, name, x, y, z, lo, hi, dirt) {
+  paintVerts(geo, lo == null ? -12 : lo, hi == null ? 20 : hi, dirt);
+  return mesh(geo, key, name, x, y, z);
+}
+
+/* 风琴防护罩：N 折，每折 = 亮竖面 + 暗斜面，明暗交替才有橡胶褶皱。
+   合并成一个几何（顶点色），避免导出几十个 mesh。 */
+function bellowsGeo(w, h, N, dep) {
+  var pos = [], col = [], idx = [], i, k = 0;
+  var y0 = -h / 2, dy = h / N;
+  function quad(ya, yb, za, zb, lum) {
+    pos.push(-w / 2, ya, za, w / 2, ya, za, w / 2, yb, zb, -w / 2, yb, zb);
+    var c = lum * (.92 + Math.random() * .12);
+    for (var q = 0; q < 4; q++) col.push(c, c * 1.01, c * 1.03);
+    idx.push(k, k + 1, k + 2, k, k + 2, k + 3); k += 4;
+  }
+  for (i = 0; i < N; i++) {
+    var ya = y0 + i * dy, ym = ya + dy * .40, yb = ya + dy;
+    var d2 = dep * (.78 + Math.random() * .42);
+    quad(ya, ym, 0, 0, .46);          /* 折脊：微亮（橡胶不是金属） */
+    quad(ym, yb, 0, -d2, .15);        /* 折谷：深黑 */
+  }
+  var g = new T.BufferGeometry();
+  g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new T.Float32BufferAttribute(col, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+
+/* ══════════════ 组装 ══════════════ */
+var root = grp('cncmill');
+
+/* ───── ① 灰色铸铁底座（小、偏后）+ 蓝色接屑盘（大、扁、带翻边） ───── */
+var BASEZ = -3.5;
+var baseG = vbody(19.2, 20.5, 5.4, .55, .10);
+root.add(painted(baseG, 'castGray', 'baseCast', 0, GROUND + 2.7, BASEZ, -2.7, 2.7, .52));
+/* 底座前面内凹检修门 + 门框 */
+var bdoor = slab(11.0, 3.1, .22, .16, .04);
+root.add(painted(bdoor, 'castGray', 'baseDoor', 0, GROUND + 2.7, BASEZ + 10.35, -1.55, 1.55, .62));
+var bframe = slab(12.0, 3.9, .10, .18, .03);
+root.add(painted(bframe, 'blueD', 'baseDoorRim', 0, GROUND + 2.7, BASEZ + 10.25, -1.95, 1.95, .7));
+/* 四角地脚凸耳 */
+[[-8.6, -12.4], [8.6, -12.4], [-8.6, 5.4], [8.6, 5.4]].forEach(function (p, i2) {
+  var l = vbody(2.6, 2.6, 1.0, .2, .05);
+  root.add(painted(l, 'castGray', 'baseFoot' + i2, p[0], GROUND + .5, p[1], -.5, .5, .5));
+});
+/* 接屑盘：前缘斜切的大盘（shape 的 -y 经 rotateX 后指向 +z，即前方），
+   中央开孔让立柱座穿过。前缘刻意不翻边：真机要方便扫屑。 */
+(function () {
+  var s = new T.Shape();
+  s.moveTo(-15.2, -6.6); s.lineTo(-13.4, -9.4);
+  s.lineTo(13.4, -9.4); s.lineTo(15.2, -6.6);
+  s.lineTo(15.2, 9.0); s.lineTo(-15.2, 9.0); s.closePath();
+  var hole = new T.Path(); hole.absarc(0, .3, 4.15, 0, PI * 2, true); s.holes.push(hole);
+  var g = new T.ExtrudeGeometry(s, { depth: .42, bevelEnabled: true, bevelSize: .07, bevelThickness: .07, bevelSegments: 2, curveSegments: 16, steps: 1 });
+  g.rotateX(-PI / 2);                 /* XY 平面 → 水平 XZ，挤出轴 → Y */
+  root.add(painted(g, 'blueD', 'chipTray', 0, GROUND + 5.55, -.5, -.5, .5, .66));
+})();
+/* 三边翻边（后 + 左右） */
+(function () {
+  var g = slab(30.6, .62, .55, .1, .04);
+  root.add(painted(g, 'blueL', 'trayLipBack', 0, GROUND + 6.15, -9.6, -.31, .31, .7));
+})();
+/* 左右翻边只做直边段（z -9.5…6.0）：再往前盘体已被斜切收窄，
+   翻边会伸到盘外，变成两条悬空的蓝飘带 */
+[-1, 1].forEach(function (sg, i4) {
+  var g = slab(.55, .62, 15.5, .1, .04);
+  root.add(painted(g, 'blueL', 'trayLipX' + i4, sg * 15.05, GROUND + 6.15, -1.75, -.31, .31, .7));
+});
+/* 底盘中央立柱座：粗蓝圆柱 + 银灰升降套筒 */
+var ped = new T.Mesh(new T.CylinderGeometry(4.0, 4.35, 4.3, 40),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+ped.name = 'MAT_blue__pedestal';
+ped.position.set(0, GROUND + 7.9, -.8);
+paintVerts(ped.geometry, -2.15, 2.15, .6);
+root.add(ped); window.__GLB_NODES.push(ped.name);
+var pedS = new T.Mesh(new T.CylinderGeometry(3.15, 3.35, 4.6, 36),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+pedS.name = 'MAT_steelD__pedestalSleeve';
+pedS.position.set(0, GROUND + 11.6, -.8);
+paintVerts(pedS.geometry, -2.3, 2.3, .76);
+root.add(pedS); window.__GLB_NODES.push(pedS.name);
+
+/* ───── ② 后立柱：灰色高柱 + 下部深蓝电气柜 + 两条淬硬导轨 ───── */
+var COLZ = -8.6, COLTOP = 19.5;
+var col = vbody(11.6, 8.8, 29.0, .62, .10);
+root.add(painted(col, 'castGray', 'column', 0, 5.0, COLZ, -14.5, 14.5, .6));
+var cab = vbody(11.9, 9.0, 9.2, .35, .08);
+root.add(painted(cab, 'blueD', 'columnCabinet', 0, GROUND + 10.4, COLZ, -4.6, 4.6, .62));
+/* 电气柜门 + 竖向散热百叶（细条，不是一整块色板） */
+var cabDoor = slab(7.4, 6.2, .20, .18, .04);
+root.add(painted(cabDoor, 'blue', 'cabDoor', 2.0, GROUND + 10.4, COLZ + 4.62, -3.1, 3.1, .72));
+for (var vi = 0; vi < 7; vi++) {
+  var vg = slab(4.6, .11, .10, .03, .02);
+  root.add(painted(vg, 'blueL', 'cabVent' + vi, 2.0, GROUND + 8.7 + vi * .55, COLZ + 4.76, -.06, .06, .8));
+}
+/* 立柱前脸两条竖向淬硬导轨（在可拆前盖后面，卸盖才看得见） */
+[-4.25, 4.25].forEach(function (xx, i5) {
+  var g = vbody(1.05, .34, 25.0, .08, .03);
+  root.add(painted(g, 'way', 'columnWay' + i5, xx, 6.0, COLZ + 4.28, -12.5, 12.5, .78));
+});
+/* 立柱顶盖 + 顶面 T 形回转座（炮塔底座） */
+var ccap = vbody(12.0, 9.2, 1.1, .3, .06);
+root.add(painted(ccap, 'castGray', 'columnCap', 0, COLTOP + .55, COLZ, -.55, .55, .8));
+/* ───── ③ 灰色滑枕 ram：从立柱顶水平伸到炮塔下方（旧版完全没有） ───── */
+/* 滑枕只伸到机头后壁（z=-3.6）为止。旧版伸到 z=+2.7，直接从后面插进机头内腔，
+   把下锥盘和背齿轮全埋了 —— 剖视只剩一根主轴就是这个原因。 */
+var ramG = slab(8.8, 4.6, 10.2, .32, .08);
+root.add(painted(ramG, 'castGray', 'ram', 0, 18.0, -8.7, -2.3, 2.3, .7));
+[-2.9, 2.9].forEach(function (xx, i6) {
+  var g = slab(.85, 10.0, .18, .06, .03); g.rotateX(-PI / 2);
+  root.add(painted(g, 'way', 'ramWay' + i6, xx, 20.34, -8.7, -.09, .09, .82));
+});
+var flange = new T.Mesh(new T.CylinderGeometry(3.6, 3.6, .5, 36),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+flange.name = 'MAT_castGray__ramFlange';
+flange.rotation.x = PI / 2; flange.position.set(0, 18.0, -3.55);
+paintVerts(flange.geometry, -2.0, 2.0, .72);
+root.add(flange); window.__GLB_NODES.push(flange.name);
+
+/* ───── ④ 立柱前盖（可拆，剖视时移开） ───── */
+var cc = grp('colCover');
+var ccBody = slab(7.2, 21.0, .45, .22, .06);
+cc.add(painted(ccBody, 'blueL', 'colCoverBody', 0, 6.5, COLZ + 4.55, -10.5, 10.5, .72));
+var ccIns = slab(6.0, 19.4, .14, .20, .04);
+cc.add(painted(ccIns, 'blueD', 'colCoverInset', 0, 6.5, COLZ + 4.84, -9.7, 9.7, .74));
+[-2.3, 2.3].forEach(function (xx, iB) {
+  var g = slab(.24, 18.6, .10, .04, .02);
+  cc.add(painted(g, 'navy', 'colCoverGroove' + iB, xx, 6.5, COLZ + 4.92, -9.3, 9.3, .62));
+});
+root.add(cc);
+/* 机头座：实物照里护罩上方是深蓝圆柱机座 + 一个带中心孔的银灰圆法兰，
+   不是一整片黑色百叶。风琴罩只留在护罩右窗里。 */
+var headPed = new T.Mesh(new T.CylinderGeometry(3.3, 3.6, 1.9, 36),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+headPed.name = 'MAT_blueD__headPedestal';
+headPed.position.set(0, 9.8, -1.2);
+paintVerts(headPed.geometry, -.95, .95, .7);
+root.add(headPed); window.__GLB_NODES.push(headPed.name);
+/* 法兰压到机头座下沿、半径收小：剖视时相机正对机头开口，
+   大盘子放在这儿会把双锥盘和 V 带全挡死（第一版就是这样） */
+var headFl = new T.Mesh(new T.CylinderGeometry(1.72, 1.72, .36, 32),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+headFl.name = 'MAT_castGray__headFlange';
+headFl.rotation.x = PI / 2; headFl.position.set(0, 9.35, 1.55);
+paintVerts(headFl.geometry, -1.72, 1.72, .8);
+root.add(headFl); window.__GLB_NODES.push(headFl.name);
+var headFlBore = new T.Mesh(new T.CylinderGeometry(.52, .52, .42, 22),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+headFlBore.name = 'MAT_groove__headFlangeBore';
+headFlBore.rotation.x = PI / 2; headFlBore.position.set(0, 9.35, 1.76);
+paintVerts(headFlBore.geometry, -.21, .21, .5);
+root.add(headFlBore); window.__GLB_NODES.push(headFlBore.name);
+for (var fi = 0; fi < 6; fi++) {
+  var fa = fi / 6 * (PI * 2);
+  var fb = new T.Mesh(new T.CylinderGeometry(.10, .10, .44, 6),
+    new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+  fb.name = 'MAT_steelD__headFlangeBolt' + fi;
+  fb.rotation.x = PI / 2;
+  fb.position.set(Math.cos(fa) * 1.38, 9.35 + Math.sin(fa) * 1.38, 1.78);
+  paintVerts(fb.geometry, -.22, .22, .85);
+  root.add(fb); window.__GLB_NODES.push(fb.name);
+}
+
+/* ───── ⑤ 升降台（缺前壁的剖切壳体，旧版逻辑保留） ───── */
+var knee = grp('knee');
+var kRear = slab(21.6, 4.5, .58, .16, .05);
+knee.add(painted(kRear, 'blue', 'kneeRear', 0, -1.0, -3.2, -2.25, 2.25, .6));
+[-1, 1].forEach(function (sg, i7) {
+  var g = slab(.58, 4.5, 10.4, .16, .05);
+  knee.add(painted(g, 'blue', 'kneeSide' + i7, sg * 10.5, -1.0, 1.8, -2.25, 2.25, .6));
+});
+var kBot = slab(21.6, 10.4, .58, .18, .05); kBot.rotateX(-PI / 2);
+knee.add(painted(kBot, 'blueD', 'kneeBottom', 0, -3.0, 1.8, -.29, .29, .5));
+var kTop = slab(21.6, 10.4, .58, .18, .05); kTop.rotateX(-PI / 2);
+knee.add(painted(kTop, 'blue', 'kneeTop', 0, .95, 1.8, -.29, .29, .7));
+root.add(knee);
+
+/* 升降台前盖（剖视移开） */
+var kneeCover = grp('kneeCover');
+var kcBody = slab(10.4, 3.6, .42, .14, .05);
+kneeCover.add(painted(kcBody, 'blueL', 'kneeCoverBody', 0, -1.0, 7.15, -1.8, 1.8, .62));
+knee.add(kneeCover);
+
+/* ───── ⑥ 白色护罩横梁：两个大圆角矩形窗 + 中间蓝竖梁（最关键） ───── */
+var HOODZ = -.25, HOODY = 6.0;
+/* 蓝框只占中间段，两端留給白色端盖（旧版蓝框盖满 30.4，把白端盖吃掉了） */
+var HOLES = [
+  { x: -5.5, y: 0, w: 9.6, h: 3.7, r: .52 },
+  { x:  5.5, y: 0, w: 9.6, h: 3.7, r: .52 }
+];
+var hoodFace = framePlate(22.6, 5.5, .5, .22, HOLES, .05);
+knee.add(painted(hoodFace, 'blue', 'hoodFace', 0, HOODY, HOODZ - 1.05, -2.75, 2.75, .8));
+/* 护罩背板 + 上下板：白铸件，形成有厚度的壳体而不是一层贴纸 */
+var hoodBack = slab(30.4, 5.5, .36, .20, .05);
+knee.add(painted(hoodBack, 'white', 'hoodBack', 0, HOODY, HOODZ - 3.35, -2.75, 2.75, .72));
+[-1, 1].forEach(function (sg, i8) {
+  var g = slab(30.4, 2.85, .38, .10, .04); g.rotateX(-PI / 2);
+  knee.add(painted(g, 'white', 'hoodCap' + i8, 0, HOODY + sg * 2.72, HOODZ - 2.4, -.19, .19, .78));
+});
+/* 左窗：奶白衬板（窗内不是空的，能看见后壁） */
+var leftIn = slab(9.35, 3.5, .22, .42, .04);
+knee.add(painted(leftIn, 'cream', 'hoodWindowLeft', -5.5, HOODY, HOODZ - 2.75, -1.75, 1.75, .86));
+/* 右窗：黑色风琴防护罩（折数少、褶更宽，像软橡胶而不是金属百叶） */
+var bel = bellowsGeo(9.35, 3.5, 9, .48);
+knee.add(mesh(bel, 'bellows', 'hoodBellows', 5.5, HOODY, HOODZ - 2.35));
+/* 窗内上下压条（真机风琴罩用压条固定在框上） */
+[-1, 1].forEach(function (sg, i9) {
+  var g = slab(9.7, .16, .3, .04, .03);
+  knee.add(painted(g, 'blueD', 'bellowsClamp' + i9, 5.5, HOODY + sg * 1.78, HOODZ - 1.35, -.08, .08, .8));
+});
+/* 左右白色端盖：上外侧斜切，实物照里最显眼的两个白方块 */
+[-1, 1].forEach(function (sg, i10) {
+  var g = chamferPlate(6.0, 5.9, 3.4, 1.25, sg < 0);
+  knee.add(painted(g, 'white', 'hoodEnd' + i10, sg * 13.3, HOODY + .05, HOODZ - 2.75, -2.95, 2.95, .86));
+  /* 端盖正面一圈细凹框（不是纯白板） */
+  var rim = framePlate(5.0, 4.5, .12, .22, [{ x: 0, y: 0, w: 3.9, h: 3.25, r: .3 }], .02);
+  knee.add(painted(rim, 'cream', 'hoodEndRim' + i10, sg * 13.3, HOODY + .05, HOODZ - 1.0, -2.25, 2.25, .9));
+});
+/* 护罩下沿一条深蓝压条，压住白件的"漂浮感" */
+var hoodSkirt = slab(30.4, .34, 2.9, .08, .03); hoodSkirt.rotateX(-PI / 2);
+knee.add(painted(hoodSkirt, 'blueD', 'hoodSkirt', 0, HOODY - 2.9, HOODZ - 2.4, -.17, .17, .7));
+
+/* ───── ⑦ 鞍座 + 工作台（细长、薄、真 T 槽） ───── */
+var saddle = grp('saddle');
+var sdG = vbody(13.2, 8.8, 1.9, .3, .07);
+saddle.add(painted(sdG, 'blueD', 'saddleBody', 0, 1.55, 1.8, -.95, .95, .75));
+/* 鞍座燕尾导轨（两条横向淬硬条） */
+[-2.9, 2.9].forEach(function (zz, i11) {
+  var g = slab(13.3, .34, .16, .05, .02); g.rotateX(-PI / 2);
+  saddle.add(painted(g, 'way', 'saddleWay' + i11, 0, 2.53, 1.8 + zz, -.08, .08, .84));
+});
+knee.add(saddle);
+
+var table = grp('table');
+var tbG = vbody(30.0, 5.4, 1.32, .26, .07);
+table.add(painted(tbG, 'white', 'tableBody', 0, 2.72, 1.8, -.66, .66, .82));
+/* 顶面：一整块连续加工板，用 Shape 挖 3 条贯通长孔 = 真 T 槽。
+   旧版把顶面拆成 13 条平行板，俯视变成「搓衣板」，这里必须是一整块平面 +
+   三条明确的暗缝。孔底另铺深色底板，孔口两侧留 T 形悬唇。 */
+var tHoles = [-1.55, 0, 1.55].map(function (zz) {
+  return { x: 0, y: zz, w: 29.5, h: .44, r: .045 };
+});
+var tFace = framePlate(30.0, 5.4, .16, .05, tHoles, .022);
+tFace.rotateX(-PI / 2);                 /* XY 面 → 水平 XZ；孔的 y 变成 -z */
+table.add(painted(tFace, 'tableTop', 'tableFaceSlots', 0, 3.45, 1.8, -.08, .08, .9));
+/* 孔底暗面：隔着孔看到的是槽底，不是台体白漆 */
+var tDark = slab(29.9, 5.35, .03, .04, .01); tDark.rotateX(-PI / 2);
+table.add(painted(tDark, 'groove', 'tslotFloor', 0, 3.39, 1.8, -.015, .015, .6));
+/* T 形收口悬唇：每槽两条，宽 .10，与台面齐平，槽口由 .44 收成 .24 */
+[-1.55, 0, 1.55].forEach(function (sz, i12) {
+  [-1, 1].forEach(function (sg, i13) {
+    var lip = slab(29.5, .10, .13, .015, .012); lip.rotateX(-PI / 2);
+    /* tFace 旋转后 shape 的 +y → -z，所以孔中心 z = 1.8 - sz */
+    table.add(painted(lip, 'tableTop', 'tslotLip' + i12 + '_' + i13,
+      0, 3.45, 1.8 - sz + sg * .17, -.065, .065, .88));
+  });
+});
+/* 工作台前后侧面：银灰加工条（实物照前缘是亮金属） */
+[-1, 1].forEach(function (sg, i14) {
+  var g = slab(30.0, .42, .12, .04, .02);
+  table.add(painted(g, 'way', 'tableEdge' + i14, 0, 2.62, 1.8 + sg * 2.76, -.21, .21, .86));
+});
+/* 两端小端盖（旧版是整块蓝色大方块，压成窄挡块） */
+[-1, 1].forEach(function (sg, i15) {
+  var g = vbody(1.0, 5.5, 1.15, .18, .05);
+  table.add(painted(g, 'blueD', 'tableEnd' + i15, sg * 15.1, 2.72, 1.8, -.58, .58, .78));
+});
+saddle.add(table);
+
+/* ───── ⑧ 炮塔 + 铣头外壳（tilt 局部坐标，缺前壁剖切壳） ───── */
+var turret = grp('turret', 0, 21.4, 0);
+var swiv = vbody(7.0, 7.0, 1.4, .5, .07);
+turret.add(painted(swiv, 'blueD', 'swivel', 0, -.2, -.6, -.7, .7, .7));
+/* 回转刻度环：一圈细银环 + 压紧螺栓孔座 */
+var swRing = new T.Mesh(new T.TorusGeometry(3.35, .085, 8, 44),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5 }));
+swRing.name = 'MAT_steelD__swivelRing'; swRing.rotation.x = PI / 2;
+swRing.position.set(0, .52, -.6);
+paintVerts(swRing.geometry, -3.4, 3.4, .84);
+turret.add(swRing); window.__GLB_NODES.push(swRing.name);
+root.add(turret);
+
+var tilt = grp('tilt', 0, -1.2, 1.5);
+turret.add(tilt);
+var HW = 4.3, HD = 8.4, SPZ = .4;
+/* 后壁 / 左右壁 / 顶板 / 带孔底板 —— 前壁由可拆前盖承担 */
+var hRear = slab(8.6, 9.0, .55, .18, .05);
+tilt.add(painted(hRear, 'navy', 'headRear', 0, -5.2, SPZ - 3.9, -4.5, 4.5, .62));
+/* 右壁固定、左壁做成可拆剖切壁（挂 headCover，剖视时跟前盖一起移开）。
+   只缺前壁的话，从侧面看仍被侧壁挡住；选左侧是因为右前方被数控面板占着。 */
+var headSideL = null;
+[-1, 1].forEach(function (sg, i16) {
+  var g = slab(.5, 9.0, HD, .3, .05);
+  var mm = painted(g, 'navy', 'headSide' + i16, sg * (HW - .25), -5.2, SPZ, -4.5, 4.5, .62);
+  if (sg < 0) headSideL = mm; else tilt.add(mm);
+});
+/* 顶板也做成可拆盖：剖视时前盖 + 左壁 + 顶板三面敞开，
+   才能俯视看清双锥盘与水平 V 带（只拆前壁时两盘在视线上重叠） */
+var hTop = slab(9.1, 8.8, 1.2, .22, .06); hTop.rotateX(-PI / 2);
+var headTopMesh = painted(hTop, 'blueD', 'headTop', 0, -.4, SPZ, -.6, .6, .8);
+/* 底板带套筒孔 */
+(function () {
+  var s = new T.Shape();
+  s.moveTo(-HW, -4.2); s.lineTo(HW, -4.2); s.lineTo(HW, 4.2); s.lineTo(-HW, 4.2); s.closePath();
+  var hole = new T.Path(); hole.absarc(0, 0, 1.5, 0, PI * 2, true); s.holes.push(hole);
+  var g = new T.ExtrudeGeometry(s, { depth: .34, bevelEnabled: true, bevelSize: .04, bevelThickness: .04, bevelSegments: 1, curveSegments: 12 });
+  g.rotateX(PI / 2);
+  tilt.add(painted(g, 'blueD', 'headBottom', 0, -9.24, SPZ, -.2, .2, .5));
+})();
+/* 前壁横梁放在机头下缘（不能放在带轮高度：会挡住剖视里 V 带那一条） */
+var hMid = slab(8.5, 1.05, .36, .12, .05);
+tilt.add(painted(hMid, 'blue', 'headMid', 0, -8.85, 3.95, -.52, .52, .78));
+[-1.0, -9.0].forEach(function (yy, iA) {
+  var fl = slab(9.0, .30, 8.7, .10, .04); fl.rotateX(-PI / 2);
+  tilt.add(painted(fl, 'blueD', 'headFlange' + iA, 0, yy, SPZ, -.15, .15, .8));
+});
+/* 套筒座后半壳：与内部主轴同轴（z=SPZ），前半敞开，剖视露得出齿轮/齿条 */
+var qShell = new T.Mesh(new T.CylinderGeometry(1.46, 1.46, 5.3, 28, 1, true, PI / 2, PI),
+  new T.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: .5, side: T.DoubleSide }));
+qShell.name = 'MAT_blue__quillHousing';
+qShell.position.set(0, -6.6, SPZ);
+paintVerts(qShell.geometry, -2.65, 2.65, .76);
+tilt.add(qShell); window.__GLB_NODES.push(qShell.name);
+/* 机头前盖（可拆）：铭牌框 + 中央凸出的套筒面板都随盖板移开 */
+var headCover = grp('headCover');
+var hcG = framePlate(8.3, 6.6, .42, .22, [{ x: 0, y: .75, w: 7.62, h: 4.05, r: .12 }], .05);
+headCover.add(painted(hcG, 'blue', 'headCoverFrame', 0, -5.0, 4.42, -3.3, 3.3, .84));
+/* 铭牌板本体：几乎占满机头上部宽度，蓝边只剩窄窄一圈（照实物照） */
+var plate = slab(7.55, 3.98, .12, .10, .03);
+headCover.add(painted(plate, 'panelWhite', 'headNameplate', 0, -4.25, 4.50, -1.99, 1.99, .92));
+/* 前盖下半：中央凸出的深蓝套筒面板 + 两条银导轨 + 刻度尺 */
+var qFace = slab(3.05, 5.0, .55, .16, .05);
+headCover.add(painted(qFace, 'blue', 'quillFace', 0, -7.25, 4.58, -2.5, 2.5, .8));
+[-1.28, 1.28].forEach(function (xx, i17) {
+  var g = slab(.22, 4.5, .14, .04, .02);
+  headCover.add(painted(g, 'steelD', 'quillRail' + i17, xx, -7.25, 4.90, -2.25, 2.25, .86));
+});
+var qScale = slab(.30, 3.9, .10, .03, .02);
+headCover.add(painted(qScale, 'steelD', 'quillScale', 0, -7.25, 4.90, -1.95, 1.95, .92));
+/* 刻度尺上的短刻线（真机是蚀刻细线，不是一整条白贴纸） */
+for (var qi = 0; qi < 16; qi++) {
+  var qt = slab(.20, .035, .035, .01, .008);
+  headCover.add(painted(qt, 'navy', 'quillTick' + qi, 0, -8.95 + qi * .23, 4.955, -.02, .02, .8));
+}
+var hcLow = slab(7.7, 1.35, .28, .18, .04);
+headCover.add(painted(hcLow, 'blueD', 'headCoverLow', 0, -8.15, 4.38, -.68, .68, .8));
+/* 左壁 + 顶板随盖板一起移开（剖切） */
+if (headSideL) headCover.add(headSideL);
+if (headTopMesh) headCover.add(headTopMesh);
+tilt.add(headCover);
+
+/* ── 导出 ── */
+log('nodes: ' + window.__GLB_NODES.length);
+var exp = new T.GLTFExporter();
+function ab2b64(buf) {
+  var bytes = new Uint8Array(buf), n = bytes.length, out = '', CH = 0x8000, i;
+  for (i = 0; i < n; i += CH)
+    out += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CH, n)));
+  return btoa(out);
+}
+exp.parse(root, function (result) {
+  if (!(result instanceof ArrayBuffer)) { window.__GLB_ERR = 'exporter did not return ArrayBuffer'; window.__GLB_DONE = true; return; }
+  window.__GLB_B64 = ab2b64(result);
+  window.__GLB_BYTES = result.byteLength;
+  window.__GLB_DONE = true;
+  log('GLB ' + (result.byteLength / 1024).toFixed(1) + ' KB');
+}, function (e) {
+  window.__GLB_ERR = String(e && e.message || e);
+  window.__GLB_DONE = true;
+}, { binary: true });
+</script>
+</body>
+</html>

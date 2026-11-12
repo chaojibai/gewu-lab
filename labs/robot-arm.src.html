@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>六轴工业机械臂 · 虚拟控制台仿真</title>
+<style>
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:#aeb7c0; overflow:hidden;
+    font-family: "PingFang SC","Microsoft YaHei",system-ui,sans-serif; color:#dfe7ef; }
+  #scene { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+
+  #hud { position:fixed; left:16px; top:14px; max-width:42%; pointer-events:none;
+    text-shadow:0 1px 4px rgba(0,0,0,.55); }
+  #hud .title { font-size:18px; font-weight:700; letter-spacing:.5px; color:#1d2530; }
+  #hud .sub { font-size:12px; opacity:.85; margin-top:4px; color:#2a323d; }
+  #hud .tip { font-size:12px; opacity:.95; margin-top:8px; color:#0a4a78; }
+  #readout { margin-top:10px; font-size:12px; line-height:1.7; font-variant-numeric:tabular-nums;
+    background:rgba(20,26,34,.72); border:1px solid rgba(150,175,200,.3); border-radius:8px;
+    padding:8px 10px; display:inline-block; color:#dfe7ef; text-shadow:none; }
+
+  #console { position:fixed; right:0; top:0; height:100%; width:344px; padding:16px 16px 28px;
+    background:rgba(16,20,26,.9); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-left:1px solid #2a323c; overflow-y:auto; font-size:13px; }
+  #console h2 { font-size:14px; margin:14px 0 6px; color:#ff9a4d; font-weight:600;
+    display:flex; justify-content:space-between; align-items:baseline; }
+  #console h2 .hint { font-size:11px; color:#8aa0b4; font-weight:400; }
+  #console h2:first-child { margin-top:2px; }
+
+  .stick { position:relative; width:150px; height:150px; margin:12px auto 6px; border-radius:50%;
+    background:radial-gradient(circle at 50% 38%, #2a3340, #141a21); border:1px solid #3a4654;
+    box-shadow:inset 0 2px 12px rgba(0,0,0,.6); touch-action:none; }
+  .stick::before, .stick::after { content:""; position:absolute; background:rgba(120,150,180,.18); }
+  .stick::before { left:50%; top:8%; width:1px; height:84%; transform:translateX(-.5px); }
+  .stick::after  { top:50%; left:8%; height:1px; width:84%; transform:translateY(-.5px); }
+  .knob { position:absolute; top:50%; left:50%; width:50px; height:50px; margin:-25px;
+    border-radius:50%; background:radial-gradient(circle at 40% 35%, #ffb070, #c8521a);
+    box-shadow:0 5px 14px rgba(0,0,0,.55), inset 0 1px 2px rgba(255,255,255,.4);
+    touch-action:none; cursor:grab; }
+  .knob:active { cursor:grabbing; }
+
+  .slider-wrap { margin:9px 0; }
+  .slider-lab { display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px; }
+  .slider-lab .deg { color:#9fd0ff; font-variant-numeric:tabular-nums; }
+  input[type=range] { width:100%; -webkit-appearance:none; appearance:none; height:5px; border-radius:3px;
+    background:#2a3340; outline:none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:#ff9a4d; border:2px solid #1a1206; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+  input[type=range]::-moz-range-thumb { width:16px; height:16px; border-radius:50%; background:#ff9a4d;
+    border:2px solid #1a1206; cursor:pointer; }
+
+  .grip-row { display:flex; align-items:center; gap:10px; margin-top:6px; }
+  .grip-row input { flex:1; }
+  .btn { background:#23303d; color:#dfe7ef; border:1px solid #3a4654; border-radius:8px;
+    padding:9px 12px; cursor:pointer; font-size:13px; transition:background .15s; }
+  .btn:hover { background:#2c3c4c; }
+  .btn.on { background:#ff7a1a; color:#1a1206; border-color:#ff7a1a; font-weight:600; }
+  .btn-row { display:flex; gap:10px; margin-top:14px; }
+  .btn-row .btn { flex:1; }
+  .btn-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+  .btn-grid .btn { width:100%; }
+
+  .legend { margin-top:16px; font-size:11px; color:#8aa0b4; line-height:1.7;
+    border-top:1px solid #2a323c; padding-top:12px; }
+</style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+
+  <div id="hud">
+    <div class="title">六轴工业机械臂 · 虚拟控制台</div>
+    <div class="sub">鼠标拖动画面旋转视角 · 滚轮缩放 · 用右侧控制台操纵机械臂</div>
+    <div class="tip">把夹爪移到蓝色料箱上方 → 夹紧即可抓起，移走再张开即放下</div>
+    <div id="readout"></div>
+  </div>
+
+  <div id="console">
+    <h2>操纵杆 <span class="hint">拖动摇杆控 基座回转 / 大臂俯仰，松手保持</span></h2>
+    <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
+
+    <h2>关节控制</h2>
+    <div id="sliders"></div>
+
+    <h2>夹爪</h2>
+    <div class="grip-row">
+      <button id="gripBtn" class="btn">已张开 · 点击夹紧</button>
+      <input type="range" id="grip" min="0" max="100" value="60">
+    </div>
+
+    <h2>响应速度 <span class="hint">越慢越“重”</span></h2>
+    <input type="range" id="speed" min="1" max="10" value="4">
+
+    <div class="btn-grid">
+      <button id="reset" class="btn">复位</button>
+      <button id="auto" class="btn">自动演示</button>
+      <button id="postfx" class="btn on">后期 开</button>
+      <button id="ik" class="btn">IK 点选</button>
+    </div>
+
+    <div class="legend">
+      橙色壳体为车漆件（clearcoat），灰色为铸铝关节，黑色为伺服电机与线缆。<br>
+      所有关节均有软限位；操纵杆与滑块双向同步。<br>
+      末端坐标由正向运动学实时解算（j6 世界坐标）。
+    </div>
+  </div>
+
+  <script>/*THREEJS*/</script>
+  <script>/*POSTFX*/</script>
+  <script>
+  (function () {
+    const THREE = window.THREE;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const TAU = Math.PI * 2;
+
+    // ---------- renderer ----------
+    const canvas = document.getElementById('scene');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    THREE.ColorManagement.legacyMode = true;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.NoToneMapping;
+
+    const scene = new THREE.Scene();
+
+    // studio backdrop (vertical gradient)
+    (function () {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 0, 256);
+      g.addColorStop(0, '#9aa6b2'); g.addColorStop(0.5, '#727d89'); g.addColorStop(1, '#4f5762');
+      x.fillStyle = g; x.fillRect(0, 0, 4, 256);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; scene.background = t;
+    })();
+
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 300);
+    // 初始机位：3/4 侧前视，机械臂与取料位同框（主体约占画面一半）
+    const camTarget = new THREE.Vector3(0.7, 4.0, -0.3);
+    let camAz = 0.78, camPol = 1.38, camRad = 19.5;
+    // 右侧有 344px 控制台，把投影中心左移，让主体落在可视区中央
+    function applyLens() {
+      const w = window.innerWidth, h = window.innerHeight;
+      const cw = (document.getElementById('console') || {}).offsetWidth || 0;
+      camera.aspect = w / h;
+      camera.setViewOffset(w, h, cw / 2, 0, w, h);
+      camera.updateProjectionMatrix();
+    }
+    function updateCamera() {
+      const sp = Math.sin(camPol), cp = Math.cos(camPol);
+      camera.position.set(
+        camTarget.x + camRad * sp * Math.sin(camAz),
+        camTarget.y + camRad * cp,
+        camTarget.z + camRad * sp * Math.cos(camAz)
+      );
+      camera.lookAt(camTarget);
+    }
+
+    // ---------- environment (reflections for metal) ----------
+    function makeEnv() {
+      const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
+      const x = c.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 0, 512);
+      g.addColorStop(0, '#f4f7fa'); g.addColorStop(0.5, '#cdd5dd'); g.addColorStop(1, '#7c8794');
+      x.fillStyle = g; x.fillRect(0, 0, 1024, 512);
+      // ceiling light bars
+      x.fillStyle = 'rgba(255,255,255,0.95)';
+      [120, 360, 600, 840].forEach(px => { x.fillRect(px - 26, 40, 52, 150); });
+      // soft windows
+      x.fillStyle = 'rgba(190,210,230,0.55)';
+      x.fillRect(40, 90, 120, 220); x.fillRect(880, 110, 110, 200);
+      // floor band
+      x.fillStyle = 'rgba(90,100,110,0.5)'; x.fillRect(0, 430, 1024, 82);
+      const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping;
+      const pm = new THREE.PMREMGenerator(renderer);
+      const rt = pm.fromEquirectangular(t); t.dispose(); pm.dispose();
+      return rt.texture;
+    }
+    scene.environment = makeEnv();
+
+    // ---------- lights ----------
+    // 三点光：暖主光（右前上）+ 冷补光（左）+ 白色轮廓光（后）
+    scene.add(new THREE.HemisphereLight(0xeef4fa, 0x59616a, 0.20));
+    const dir = new THREE.DirectionalLight(0xfff2e2, 1.22);
+    dir.position.set(11, 19, 13); dir.castShadow = true;
+    dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.radius = 4; dir.shadow.bias = -0.0004;
+    const sd = 15;
+    dir.shadow.camera.left = -sd; dir.shadow.camera.right = sd;
+    dir.shadow.camera.top = sd; dir.shadow.camera.bottom = -sd;
+    dir.shadow.camera.near = 1; dir.shadow.camera.far = 80;
+    scene.add(dir);
+    const fill = new THREE.DirectionalLight(0xd6e2ec, 0.28); fill.position.set(-13, 8, -4); scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.62); rim.position.set(-2, 12, -16); scene.add(rim);
+
+    // ---------- floor ----------
+    // 程序化混凝土地面：细颗粒 + 分格缝，避免一大片死灰
+    function concreteTex() {
+      const s = 512;
+      const c = document.createElement('canvas'); c.width = c.height = s;
+      const g = c.getContext('2d');
+      g.fillStyle = '#6c757d'; g.fillRect(0, 0, s, s);
+      let seed = 7;
+      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      // 大尺度色斑
+      for (let i = 0; i < 46; i++) {
+        const x = rnd() * s, y = rnd() * s, r = 26 + rnd() * 110;
+        const gr = g.createRadialGradient(x, y, 0, x, y, r);
+        const light = rnd() > 0.5;
+        gr.addColorStop(0, light ? 'rgba(255,255,255,0.055)' : 'rgba(20,26,32,0.05)');
+        gr.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      }
+      // 细颗粒
+      for (let i = 0; i < 9000; i++) {
+        const a = 0.02 + rnd() * 0.035;
+        g.fillStyle = rnd() > 0.5 ? `rgba(255,255,255,${a})` : `rgba(15,20,26,${a})`;
+        g.fillRect(rnd() * s, rnd() * s, 1.4, 1.4);
+      }
+      // 分格缝
+      g.strokeStyle = 'rgba(24,30,36,0.30)'; g.lineWidth = 3;
+      g.beginPath(); g.moveTo(0, 0.5); g.lineTo(s, 0.5); g.moveTo(0.5, 0); g.lineTo(0.5, s); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.06)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, 2.5); g.lineTo(s, 2.5); g.moveTo(2.5, 0); g.lineTo(2.5, s); g.stroke();
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(15, 15);
+      t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
+      return t;
+    }
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(120, 120),
+      new THREE.MeshStandardMaterial({ map: concreteTex(), color: 0xffffff, metalness: 0.0, roughness: 0.82, envMapIntensity: 0.25 })
+    );
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+    // contact shadow blob (soft grounding)
+    const blobTex = (function () {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const x = c.getContext('2d');
+      const g = x.createRadialGradient(64, 64, 4, 64, 64, 62);
+      g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(0.6, 'rgba(0,0,0,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(c);
+    })();
+    function blob(size, y) {
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(size, size),
+        new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false })
+      );
+      m.rotation.x = -Math.PI / 2; m.position.y = y; scene.add(m); return m;
+    }
+    blob(7, 0.02);
+
+    // ---------- materials ----------
+    const shellOrange = new THREE.MeshPhysicalMaterial({
+      color: 0xff6a08, metalness: 0.25, roughness: 0.42, clearcoat: 0.75, clearcoatRoughness: 0.3, envMapIntensity: 0.55
+    });
+    const castGray = new THREE.MeshStandardMaterial({ color: 0x8f979f, metalness: 0.68, roughness: 0.5, envMapIntensity: 0.7 });
+    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x2e3238, metalness: 0.8, roughness: 0.5, envMapIntensity: 0.75 });
+    const polished = new THREE.MeshStandardMaterial({ color: 0xaeb5bc, metalness: 0.95, roughness: 0.38, envMapIntensity: 0.85 });
+    const rubber = new THREE.MeshStandardMaterial({ color: 0x121417, metalness: 0.0, roughness: 0.9 });
+    // 现场陈设材质
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x8b949d, metalness: 0.0, roughness: 0.94, envMapIntensity: 0.18 });
+    const wainMat = new THREE.MeshStandardMaterial({ color: 0x3c454e, metalness: 0.15, roughness: 0.8, envMapIntensity: 0.25 });
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x98a1aa, metalness: 0.8, roughness: 0.4, envMapIntensity: 0.8 });
+    const yellowMat = new THREE.MeshStandardMaterial({ color: 0xd9a400, metalness: 0.15, roughness: 0.55, envMapIntensity: 0.4 });
+    const beltMat = new THREE.MeshStandardMaterial({ color: 0x23262b, metalness: 0.05, roughness: 0.92 });
+    const cabMat = new THREE.MeshStandardMaterial({ color: 0x4a5764, metalness: 0.3, roughness: 0.55, envMapIntensity: 0.45 });
+    const cabFaceMat = new THREE.MeshStandardMaterial({ color: 0x28323c, metalness: 0.4, roughness: 0.5, envMapIntensity: 0.5 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8a6a45, metalness: 0.0, roughness: 0.9 });
+    const ledGreen = new THREE.MeshStandardMaterial({ color: 0x0a1c12, emissive: 0x39ff9a, emissiveIntensity: 1.8 });
+
+    const stripeTex = (function () {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const x = c.getContext('2d');
+      x.fillStyle = '#ffce00'; x.fillRect(0, 0, 128, 128);
+      x.fillStyle = '#16181c';
+      for (let i = -128; i < 256; i += 28) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i + 14, 0); x.lineTo(i + 14 - 128, 128); x.lineTo(i - 128, 128); x.closePath(); x.fill(); }
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 1); return t;
+    })();
+    const hazardMat = new THREE.MeshStandardMaterial({ map: stripeTex, metalness: 0.1, roughness: 0.6 });
+
+    function cyl(r1, r2, h, mat, seg) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg || 32), mat);
+      m.castShadow = true; m.receiveShadow = true; return m;
+    }
+    function sph(r, mat, seg) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, seg || 24, seg || 16), mat);
+      m.castShadow = true; m.receiveShadow = true; return m;
+    }
+    function boltRing(parent, r, y, n, mat) {
+      for (let i = 0; i < n; i++) {
+        const a = i / n * TAU;
+        const b = cyl(0.05, 0.05, 0.09, mat, 10); b.position.set(Math.cos(a) * r, y, Math.sin(a) * r); parent.add(b);
+      }
+    }
+    // 沿 X 轴的螺栓圈（关节端盖）
+    function boltRingX(parent, x, r, n, mat, rad) {
+      for (let i = 0; i < n; i++) {
+        const a = i / n * TAU;
+        const b = cyl(rad || 0.045, rad || 0.045, 0.07, mat, 8);
+        b.rotation.z = Math.PI / 2; b.position.set(x, Math.cos(a) * r, Math.sin(a) * r); parent.add(b);
+      }
+    }
+    function addTube(parent, pts, r, mat) {
+      const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0], p[1], p[2])));
+      const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, r, 10, false), mat);
+      m.castShadow = true; parent.add(m); return m;
+    }
+    function box(w, h, d, mat) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.castShadow = true; m.receiveShadow = true; return m;
+    }
+
+    // procedural normal map for cast/dark metal micro detail
+    function castNormalMap(size, strength) {
+      const h = new Float32Array(size * size);
+      const rand = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+      const vn = (x, y) => {
+        const xi = Math.floor(x), yi = Math.floor(y); const xf = x - xi, yf = y - yi;
+        const a = rand(xi, yi), b = rand(xi + 1, yi), c = rand(xi, yi + 1), d = rand(xi + 1, yi + 1);
+        const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+        return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+      };
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+        let n = 0, amp = 0.6, f = 4;
+        for (let o = 0; o < 4; o++) { n += vn(x / size * f, y / size * f) * amp; amp *= 0.5; f *= 2; }
+        h[y * size + x] = n;
+      }
+      const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d');
+      const img = g.createImageData(size, size);
+      const idx = (x, y) => ((y + size) % size) * size + ((x + size) % size);
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+        const dx = (h[idx(x + 1, y)] - h[idx(x - 1, y)]) * strength;
+        const dy = (h[idx(x, y + 1)] - h[idx(x, y - 1)]) * strength;
+        let nx = -dx, ny = -dy, nz = 1; const len = Math.hypot(nx, ny, nz);
+        const i = (y * size + x) * 4;
+        img.data[i] = (-nx / len * 0.5 + 0.5) * 255;
+        img.data[i + 1] = (-ny / len * 0.5 + 0.5) * 255;
+        img.data[i + 2] = (nz / len * 0.5 + 0.5) * 255;
+        img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 4); return t;
+    }
+    const nrm = castNormalMap(256, 1.4);
+    castGray.normalMap = nrm; castGray.normalScale = new THREE.Vector2(0.5, 0.5);
+    darkMetal.normalMap = nrm; darkMetal.normalScale = new THREE.Vector2(0.4, 0.4);
+
+    // cooling slits on a joint group's +Z face
+    function faceVents(parent, z, yc, n, h) {
+      for (let i = 0; i < n; i++) {
+        const s = box(0.03, h, 0.02, darkMetal);
+        s.position.set((i - (n - 1) / 2) * 0.12, yc, z); parent.add(s);
+      }
+    }
+
+    // =====================================================================
+    //  工业现场（地面标识 / 围栏 / 控制柜 / 输送线 / 托盘）
+    //  仅做视觉陈设，不参与抓取与运动学，几何体保持克制
+    // =====================================================================
+    const CRATE_HOME = { x: 2.6, y: 0.25, z: -1.4 };
+
+    // 黄黑警示环（环形斜纹，贴地）
+    function hazardRingTex() {
+      const s = 512, c = document.createElement('canvas'); c.width = c.height = s;
+      const g = c.getContext('2d'); const cx = s / 2, cy = s / 2;
+      const rOut = s * 0.465, rIn = s * 0.385;
+      g.save();
+      g.beginPath(); g.arc(cx, cy, rOut, 0, TAU); g.arc(cx, cy, rIn, 0, TAU, true); g.clip();
+      g.fillStyle = '#e6b400'; g.fillRect(0, 0, s, s);
+      g.fillStyle = '#17191d';
+      for (let i = -s; i < s * 2; i += 46) {
+        g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 23, 0); g.lineTo(i + 23 - s, s); g.lineTo(i - s, s); g.closePath(); g.fill();
+      }
+      g.restore();
+      g.strokeStyle = 'rgba(230,180,0,0.9)'; g.lineWidth = 6;
+      g.beginPath(); g.arc(cx, cy, rOut, 0, TAU); g.stroke();
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
+    }
+
+
+    // 高窗玻璃（带窗框，避免成为白纸片）
+    function windowTex() {
+      const w = 256, h = 96, c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 0, h);
+      gr.addColorStop(0, '#eef5fb'); gr.addColorStop(0.6, '#cfe0ec'); gr.addColorStop(1, '#b3c6d6');
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = 'rgba(214,230,242,0.28)';
+      g.beginPath(); g.moveTo(0, h); g.lineTo(w * 0.55, 0); g.lineTo(w, 0); g.lineTo(w * 0.4, h); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(80,98,114,0.55)';
+      for (let x = 0; x <= w - 4; x += 64) g.fillRect(x, 0, 4, h);
+      g.fillRect(0, 0, w, 5); g.fillRect(0, h - 5, w, 5);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+    }
+    // 地面安全区划线与取料位角标
+    function floorMarkTex() {
+      const s = 1024, c = document.createElement('canvas'); c.width = c.height = s;
+      const g = c.getContext('2d');
+      // 外圈黄色安全边界
+      g.strokeStyle = 'rgba(226,180,20,0.95)'; g.lineWidth = 9;
+      g.strokeRect(56, 56, s - 112, s - 112);
+      // 内圈白色细线
+      g.strokeStyle = 'rgba(240,244,248,0.35)'; g.lineWidth = 3;
+      g.strokeRect(76, 76, s - 152, s - 152);
+      // 四角白色 L 形定位角标
+      g.strokeStyle = 'rgba(245,248,250,0.65)'; g.lineWidth = 8;
+      [[56, 56, 1, 1], [s - 56, 56, -1, 1], [56, s - 56, 1, -1], [s - 56, s - 56, -1, -1]].forEach(([x, y, sx, sy]) => {
+        g.beginPath(); g.moveTo(x, y + sy * 70); g.lineTo(x, y); g.lineTo(x + sx * 70, y); g.stroke();
+      });
+      // 输送线方向的黄色地标箭头
+      g.fillStyle = 'rgba(226,180,20,0.55)';
+      for (let i = 0; i < 3; i++) {
+        const x = 300 + i * 120, y = 512;
+        g.beginPath(); g.moveTo(x, y - 26); g.lineTo(x + 46, y); g.lineTo(x, y + 26); g.closePath(); g.fill();
+      }
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
+    }
+
+    function pickupMarkTex() {
+      const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+      const g = c.getContext('2d');
+      g.strokeStyle = 'rgba(86,196,255,0.95)'; g.lineWidth = 9; g.lineCap = 'square';
+      const m = 20, len = 62;
+      [[m, m, 1, 1], [s - m, m, -1, 1], [m, s - m, 1, -1], [s - m, s - m, -1, -1]].forEach(([x, y, sx, sy]) => {
+        g.beginPath(); g.moveTo(x, y + sy * len); g.lineTo(x, y); g.lineTo(x + sx * len, y); g.stroke();
+      });
+      g.strokeStyle = 'rgba(86,196,255,0.35)'; g.lineWidth = 3;
+      g.setLineDash([12, 12]); g.strokeRect(52, 52, s - 104, s - 104);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
+    }
+
+    // HMI 触摸屏画面
+    function hmiTex() {
+      const w = 256, h = 160, c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      g.fillStyle = '#0b2034'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(80,150,210,0.25)'; g.lineWidth = 1;
+      for (let x = 0; x < w; x += 16) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+      for (let y = 0; y < h; y += 16) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+      g.strokeStyle = '#48e0a0'; g.lineWidth = 3; g.beginPath();
+      for (let i = 0; i < 24; i++) {
+        const x = 8 + i * 10, y = 104 - Math.sin(i * 0.55) * 34 - i * 1.4;
+        i ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+      g.fillStyle = 'rgba(120,200,255,0.85)';
+      g.fillRect(12, 12, 66, 8); g.fillRect(12, 30, 42, 6);
+      g.fillStyle = '#ffb454'; g.fillRect(150, 12, 90, 24);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+    }
+
+    (function paintGround() {
+      // 地面划区
+      const mark = new THREE.Mesh(new THREE.PlaneGeometry(16, 16),
+        new THREE.MeshBasicMaterial({ map: floorMarkTex(), transparent: true, depthWrite: false, opacity: 0.85 }));
+      mark.rotation.x = -Math.PI / 2;
+      mark.position.set(0.8, 0.012, -2.2); scene.add(mark);
+      // 基座外围黄黑警示环
+      const haz = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 5.5),
+        new THREE.MeshBasicMaterial({ map: hazardRingTex(), transparent: true, depthWrite: false }));
+      haz.rotation.x = -Math.PI / 2; haz.position.set(0, 0.016, 0); scene.add(haz);
+      // 取料位角标
+      const pick = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7),
+        new THREE.MeshBasicMaterial({ map: pickupMarkTex(), transparent: true, depthWrite: false }));
+      pick.rotation.x = -Math.PI / 2; pick.position.set(CRATE_HOME.x, 0.018, CRATE_HOME.z); scene.add(pick);
+    })();
+
+    (function buildCell() {
+      // ---- 背景墙：墙裙 + 立柱 + 高窗，给场景一个“车间”边界 ----
+      const WH = 10;
+      const back = box(30, WH, 0.4, wallMat); back.position.set(0, WH / 2, -13); back.receiveShadow = true; scene.add(back);
+      const backWain = box(30, 1.3, 0.08, wainMat); backWain.position.set(0, 0.65, -12.75); scene.add(backWain);
+      for (let x = -10; x <= 10; x += 5) {
+        const col = box(0.5, WH, 0.55, wainMat); col.position.set(x, WH / 2, -12.7); col.receiveShadow = true; scene.add(col);
+      }
+      // 高处采光带
+      const winMat = new THREE.MeshBasicMaterial({ map: windowTex() });
+      for (let x = -9; x <= 9; x += 6) {
+        const win = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.2), winMat);
+        win.position.set(x, 7.2, -12.78); scene.add(win);
+      }
+      const side = box(0.4, WH, 26, wallMat); side.position.set(-13.2, WH / 2, -2); side.receiveShadow = true; scene.add(side);
+      const sideWain = box(0.08, 1.3, 26, wainMat); sideWain.position.set(-12.95, 0.65, -2); scene.add(sideWain);
+      // 侧墙立柱，避免整面大白墙
+      for (let z = -10; z <= 6; z += 4) {
+        const col = box(0.35, WH, 0.5, wainMat); col.position.set(-12.92, WH / 2, z); scene.add(col);
+      }
+
+      // ---- 安全围栏（立柱 + 双横杆 + 踢脚板） ----
+      const FZ = -8.6;
+      for (let x = -8.4; x <= 8.4; x += 2.1) {
+        const p = box(0.1, 2.0, 0.1, yellowMat); p.position.set(x, 1.0, FZ); scene.add(p);
+        const cap = box(0.16, 0.06, 0.16, darkMetal); cap.position.set(x, 2.02, FZ); scene.add(cap);
+      }
+      [1.0, 1.86].forEach(y => {
+        const r = box(17.0, 0.06, 0.06, steelMat); r.position.set(0, y, FZ); scene.add(r);
+      });
+      const kick = box(17.0, 0.2, 0.03, hazardMat); kick.position.set(0, 0.14, FZ); scene.add(kick);
+
+      // ---- 控制柜（HMI + 按钮 + 三色灯柱） ----
+      const cab = new THREE.Group(); cab.position.set(-4.55, 0, -2.4); cab.rotation.y = 0.55; cab.scale.setScalar(1.24); scene.add(cab);
+      const plinth = box(1.34, 0.12, 0.94, wainMat); plinth.position.y = 0.06; cab.add(plinth);
+      const body = box(1.22, 1.62, 0.82, cabMat); body.position.y = 0.93; cab.add(body);
+      const bezel = box(0.98, 0.9, 0.04, cabFaceMat); bezel.position.set(0, 1.3, 0.42); cab.add(bezel);
+      const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 0.42), new THREE.MeshBasicMaterial({ map: hmiTex() }));
+      scr.position.set(-0.06, 1.32, 0.445); cab.add(scr);
+      for (let i = 0; i < 3; i++) {
+        const b = cyl(0.045, 0.045, 0.035, i === 0 ? ledGreen : darkMetal, 12);
+        b.rotation.x = Math.PI / 2; b.position.set(0.34, 1.44 - i * 0.12, 0.45); cab.add(b);
+      }
+      const beaconBase = cyl(0.075, 0.09, 0.08, darkMetal, 12); beaconBase.position.set(0.34, 1.78, 0.1); cab.add(beaconBase);
+      const beacon = cyl(0.065, 0.065, 0.12, ledGreen, 12); beacon.position.set(0.34, 1.88, 0.1); cab.add(beacon);
+      // 柜脚落地阴影块
+      const cabShadow = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.9),
+        new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false, opacity: 0.6 }));
+      cabShadow.rotation.x = -Math.PI / 2; cabShadow.position.set(-4.55, 0.022, -2.4); scene.add(cabShadow);
+
+      // ---- 输送线（端头朝向机械臂取料位） ----
+      const conv = new THREE.Group(); conv.position.set(3.4, 0, -6.3); scene.add(conv);
+      const CL = 9.6, CH = 0.84;
+      const bed = box(CL, 0.08, 0.9, beltMat); bed.position.y = CH; conv.add(bed);
+      const rollerMat = new THREE.MeshStandardMaterial({ color: 0x767f88, metalness: 0.9, roughness: 0.35, envMapIntensity: 0.95 });
+      [-1, 1].forEach(s => {
+        const rail = box(CL, 0.16, 0.06, yellowMat); rail.position.set(0, CH + 0.13, s * 0.47); conv.add(rail);
+        const skirt = box(CL, 0.34, 0.07, cabMat); skirt.position.set(0, CH - 0.18, s * 0.47); conv.add(skirt);
+      });
+      for (let i = 0; i < 14; i++) {
+        const r = cyl(0.075, 0.075, 0.92, rollerMat, 12);
+        r.rotation.x = Math.PI / 2;
+        r.position.set(-CL / 2 + 0.35 + i * (CL - 0.7) / 13, CH + 0.075, 0); conv.add(r);
+      }
+      [-CL / 2 + 0.55, 0, CL / 2 - 0.55].forEach(x => {
+        [-0.36, 0.36].forEach(z => {
+          const leg = box(0.1, CH - 0.05, 0.1, steelMat); leg.position.set(x, (CH - 0.05) / 2, z); conv.add(leg);
+        });
+      });
+      // 输送线上的静态灰料箱（与可抓取的蓝箱区分开）
+      const binMat = new THREE.MeshStandardMaterial({ color: 0x424c57, metalness: 0.25, roughness: 0.6, envMapIntensity: 0.4 });
+      const labelMat = new THREE.MeshStandardMaterial({ color: 0xd9a400, metalness: 0.1, roughness: 0.7 });
+      [-2.6, -0.9].forEach((x, i) => {
+        const bin = new THREE.Group(); bin.position.set(x, CH + 0.1, 0); conv.add(bin);
+        const b = box(0.58, 0.58, 0.58, binMat); b.position.y = 0.29; bin.add(b);
+        const lab = box(0.4, 0.12, 0.012, labelMat); lab.position.set(0, 0.34, 0.297); bin.add(lab);
+        bin.rotation.y = i ? 0.18 : -0.1;
+      });
+      // 输送线端头挡板
+      const stop = box(0.06, 0.5, 1.0, hazardMat); stop.position.set(-CL / 2 - 0.02, CH + 0.1, 0); conv.add(stop);
+
+      // ---- 木托盘 + 备用料箱（填左侧空白） ----
+      const pal = new THREE.Group(); pal.position.set(-5.3, 0, 1.4); pal.rotation.y = 0.24; scene.add(pal);
+      for (let i = 0; i < 5; i++) {
+        const sl = box(1.7, 0.12, 0.18, woodMat); sl.position.set(0, 0.06, -0.55 + i * 0.275); pal.add(sl);
+      }
+      [-0.72, 0.72].forEach(x => {
+        const blk = box(0.16, 0.12, 1.2, woodMat); blk.position.set(x, 0.06, 0); pal.add(blk);
+      });
+      const spMat = new THREE.MeshStandardMaterial({ color: 0x3f5f7a, metalness: 0.2, roughness: 0.6, envMapIntensity: 0.4 });
+      [[-0.36, 0.4], [0.38, 0.4]].forEach(([x, y], i) => {
+        const sp = box(0.62, 0.62, 0.62, spMat); sp.position.set(x, 0.45, 0); pal.add(sp);
+        const lab = box(0.42, 0.1, 0.012, labelMat); lab.position.set(x, 0.5, 0.312); pal.add(lab);
+      });
+    })();
+
+    // ---------- robot arm (hierarchical joints) ----------
+    const robot = new THREE.Group(); scene.add(robot);
+
+    // base / pedestal
+    const foot = cyl(1.55, 1.7, 0.22, darkMetal, 48); foot.position.y = 0.11; robot.add(foot);
+    const ped = cyl(1.15, 1.35, 0.52, castGray, 48); ped.position.y = 0.48; robot.add(ped);
+    // 基座警示环：用圆环代替圆柱端面，斜纹不会被顶盖吃掉
+    const band = new THREE.Mesh(new THREE.TorusGeometry(1.30, 0.10, 10, 64), hazardMat);
+    band.rotation.x = Math.PI / 2; band.position.y = 0.70; band.castShadow = true; robot.add(band);
+    const bandTrim = new THREE.Mesh(new THREE.TorusGeometry(1.14, 0.03, 8, 64), polished);
+    bandTrim.rotation.x = Math.PI / 2; bandTrim.position.y = 0.765; robot.add(bandTrim);
+    boltRing(robot, 1.45, 0.2, 12, polished);
+
+    const j1 = new THREE.Group(); j1.position.y = 0.86; robot.add(j1);
+    const yaw = cyl(0.95, 0.95, 0.72, shellOrange, 40); yaw.position.y = 0.36; j1.add(yaw);
+    const yawTop = cyl(1.0, 1.0, 0.12, polished, 40); yawTop.position.y = 0.72; j1.add(yawTop);
+    boltRing(j1, 0.82, 0.74, 10, darkMetal);
+    addTube(j1, [[0.35, 0.0, -0.5], [0.55, 0.34, -0.6], [0.38, 0.66, -0.5]], 0.06, rubber);
+
+    // nameplate on base
+    const plateTex = (function () {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+      const x = c.getContext('2d');
+      x.fillStyle = '#15181d'; x.fillRect(0, 0, 256, 64);
+      x.strokeStyle = '#3a4350'; x.lineWidth = 4; x.strokeRect(2, 2, 252, 60);
+      x.fillStyle = '#d7dee6'; x.font = 'bold 26px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText('LR-6  6-AXIS', 128, 34);
+      const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t;
+    })();
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.2, 0.04),
+      new THREE.MeshStandardMaterial({ map: plateTex, metalness: 0.3, roughness: 0.6 }));
+    plate.position.set(0, 0.4, 0.955); j1.add(plate);
+
+    const j2 = new THREE.Group(); j2.position.y = 0.6; j1.add(j2);
+    const shMotor = cyl(0.52, 0.52, 1.05, darkMetal, 28); shMotor.rotation.z = Math.PI / 2; shMotor.position.y = 0.18; j2.add(shMotor);
+    const shHub = sph(0.62, castGray, 28); shHub.scale.set(1, 0.62, 1); shHub.position.y = 0.18; j2.add(shHub);
+    const shCap = cyl(0.5, 0.5, 0.14, polished, 28); shCap.rotation.z = Math.PI / 2; shCap.position.set(0.56, 0.18, 0); j2.add(shCap);
+    const shCap2 = cyl(0.5, 0.5, 0.14, polished, 28); shCap2.rotation.z = Math.PI / 2; shCap2.position.set(-0.56, 0.18, 0); j2.add(shCap2);
+    faceVents(j2, 0.62, 0.18, 4, 0.5);
+    // 肩关节端盖螺栓 + 中心轴帽
+    boltRingX(j2, 0.635, 0.33, 8, darkMetal, 0.038);
+    boltRingX(j2, -0.635, 0.33, 8, darkMetal, 0.038);
+    const shAxis = cyl(0.13, 0.13, 0.1, darkMetal, 16); shAxis.rotation.z = Math.PI / 2; shAxis.position.set(0.65, 0.18, 0); j2.add(shAxis);
+
+    const L1 = 2.4;
+    const upper = cyl(0.44, 0.34, L1, shellOrange, 32); upper.position.y = L1 / 2; j2.add(upper);
+    const upperBack = cyl(0.3, 0.26, L1 * 0.92, castGray, 24); upperBack.position.set(0, L1 / 2, -0.22); j2.add(upperBack);
+    addTube(j2, [[0, -0.05, -0.36], [0, 1.2, -0.52], [0, L1 - 0.08, -0.36]], 0.075, rubber);
+    addTube(j2, [[0.16, -0.02, -0.34], [0.2, 1.2, -0.48], [0.16, L1 - 0.1, -0.33]], 0.038, rubber);
+    // 线缆固定卡箍
+    [0.55, 1.2, 1.85].forEach(y => {
+      const clip = box(0.46, 0.07, 0.16, darkMetal); clip.position.set(0, y, -0.44); j2.add(clip);
+    });
+
+    const j3 = new THREE.Group(); j3.position.y = L1; j2.add(j3);
+    const elMotor = cyl(0.46, 0.46, 0.95, darkMetal, 28); elMotor.rotation.z = Math.PI / 2; j3.add(elMotor);
+    const elHub = sph(0.55, castGray, 28); elHub.scale.set(1, 0.6, 1); j3.add(elHub);
+    const elCap = cyl(0.44, 0.44, 0.12, polished, 28); elCap.rotation.z = Math.PI / 2; elCap.position.set(0.5, 0, 0); j3.add(elCap);
+    faceVents(j3, 0.55, 0.0, 4, 0.42);
+    boltRingX(j3, 0.565, 0.29, 6, darkMetal, 0.035);
+
+    const L2 = 2.0;
+    const fore = cyl(0.34, 0.3, L2, shellOrange, 32); fore.position.y = L2 / 2; j3.add(fore);
+    const foreBack = cyl(0.24, 0.22, L2 * 0.92, castGray, 24); foreBack.position.set(0, L2 / 2, -0.18); j3.add(foreBack);
+    const roll = cyl(0.33, 0.33, 0.55, darkMetal, 28); roll.position.y = 0.1; j3.add(roll);
+    addTube(j3, [[0, -0.05, -0.3], [0, 1.0, -0.44], [0, L2 - 0.08, -0.3]], 0.06, rubber);
+    addTube(j3, [[0.1, -0.05, -0.32], [0.1, 1.0, -0.44], [0.1, L2 - 0.08, -0.32]], 0.035, rubber);
+
+    const j4 = new THREE.Group(); j4.position.y = L2; j3.add(j4);
+    const neck = cyl(0.32, 0.32, 0.55, shellOrange, 28); neck.position.y = 0.27; j4.add(neck);
+
+    const j5 = new THREE.Group(); j5.position.y = 0.55; j4.add(j5);
+    const wpMotor = cyl(0.3, 0.3, 0.66, darkMetal, 24); wpMotor.rotation.z = Math.PI / 2; j5.add(wpMotor);
+    const wHub = cyl(0.34, 0.34, 0.42, castGray, 24); wHub.rotation.z = Math.PI / 2; j5.add(wHub);
+    faceVents(j5, 0.36, 0.0, 3, 0.34);
+    addTube(j5, [[0, -0.05, -0.26], [0, 0.5, -0.34], [0, 0.95, -0.22]], 0.05, rubber);
+    // 腕部端盖与螺栓
+    const wCap = cyl(0.2, 0.2, 0.06, polished, 20); wCap.rotation.z = Math.PI / 2; wCap.position.set(0.345, 0, 0); j5.add(wCap);
+    boltRingX(j5, 0.35, 0.14, 4, darkMetal, 0.03);
+
+    const j6 = new THREE.Group(); j6.position.y = 0.55; j5.add(j6);
+    const flange = cyl(0.32, 0.32, 0.14, polished, 28); flange.position.y = 0.1; j6.add(flange);
+    boltRing(j6, 0.23, 0.185, 4, darkMetal);
+    const tool = cyl(0.22, 0.26, 0.22, darkMetal, 24); tool.position.y = 0.27; j6.add(tool);
+    const gripBase = cyl(0.34, 0.34, 0.16, darkMetal, 28); gripBase.position.y = 0.42; j6.add(gripBase);
+    // 平行夹爪的导轨与滑块，避免两根手指看起来“悬空”
+    const jawSlide = box(1.0, 0.13, 0.3, darkMetal); jawSlide.position.y = 0.47; j6.add(jawSlide);
+    [-0.11, 0.11].forEach(z => {
+      const rod = cyl(0.028, 0.028, 0.98, polished, 10);
+      rod.rotation.z = Math.PI / 2; rod.position.set(0, 0.49, z); j6.add(rod);
+    });
+    // 工具状态灯环（让末端在暗部也能读出来）
+    const toolLed = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.022, 8, 40), ledGreen);
+    toolLed.rotation.x = Math.PI / 2; toolLed.position.y = 0.455; j6.add(toolLed);
+
+    function finger(side) {
+      const g = new THREE.Group();
+      const car = box(0.28, 0.16, 0.36, castGray); car.position.y = 0.27; g.add(car);
+      const f = box(0.13, 0.5, 0.3, darkMetal); f.position.y = 0.5; g.add(f);
+      const pad = box(0.05, 0.36, 0.32, rubber); pad.position.set(-side * 0.08, 0.5, 0); g.add(pad);
+      for (let i = 0; i < 4; i++) {
+        const r = box(0.04, 0.04, 0.28, polished); r.position.set(-side * 0.075, 0.36 + i * 0.1, 0); g.add(r);
+      }
+      const tipw = box(0.16, 0.14, 0.34, polished); tipw.position.y = 0.22; g.add(tipw);
+      g.position.set(side * 0.22, 0.2, 0); j6.add(g); return g;
+    }
+    const fL = finger(1), fR = finger(-1);
+    const tip = new THREE.Object3D(); tip.position.y = 1.0; j6.add(tip);
+
+    // ---------- pickable crate + drop pad ----------
+    const crateMat = new THREE.MeshStandardMaterial({
+      color: 0x2f7fd6, metalness: 0.2, roughness: 0.55, envMapIntensity: 0.8,
+      emissive: 0x0a2a4a, emissiveIntensity: 0.35
+    });
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), crateMat);
+    crate.castShadow = true; crate.receiveShadow = true;
+    crate.position.set(CRATE_HOME.x, CRATE_HOME.y, CRATE_HOME.z); scene.add(crate);
+    // 料箱棱边亮条，远看也能从橙色机械臂里区分出来
+    const crateEdge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(0.502, 0.502, 0.502)),
+      new THREE.LineBasicMaterial({ color: 0x8fd8ff, transparent: true, opacity: 0.55 })
+    );
+    crate.add(crateEdge);
+
+    // ---------- 交互反馈：吸附提示环 + TCP 轨迹残影 ----------
+    const snapRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.46, 0.55, 48),
+      new THREE.MeshBasicMaterial({ color: 0x66d8ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })
+    );
+    snapRing.rotation.x = -Math.PI / 2; snapRing.position.y = 0.022; snapRing.visible = false; scene.add(snapRing);
+
+    const TRAIL_N = 44;
+    const trailPos = new Float32Array(TRAIL_N * 3);
+    const trailCol = new Float32Array(TRAIL_N * 3);
+    for (let i = 0; i < TRAIL_N; i++) {                // 越新越亮，尾部自然淡出
+      const t = i / (TRAIL_N - 1);
+      trailCol[i * 3] = 0.05 + t * 0.48;
+      trailCol[i * 3 + 1] = 0.16 + t * 0.70;
+      trailCol[i * 3 + 2] = 0.26 + t * 0.72;
+    }
+    const trailGeo = new THREE.BufferGeometry();
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3).setUsage(THREE.DynamicDrawUsage));
+    trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 3));
+    const trailMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.62, depthWrite: false });
+    const trail = new THREE.Line(trailGeo, trailMat);
+    trail.frustumCulled = false; scene.add(trail);
+    const trailPts = [];
+    const trailLast = new THREE.Vector3(1e9, 1e9, 1e9);
+
+    // ---------- joint state ----------
+    const joints = [
+      { name: 'J1 基座回转', obj: j1, axis: 'y', min: -Math.PI, max: Math.PI, target: 0,    cur: 0 },
+      { name: 'J2 大臂俯仰', obj: j2, axis: 'z', min: -1.3,    max: 1.3,    target: 0.6,  cur: 0.6 },
+      { name: 'J3 小臂俯仰', obj: j3, axis: 'z', min: -2.4,    max: 0.2,    target: -1.0, cur: -1.0 },
+      { name: 'J4 腕部回转', obj: j4, axis: 'y', min: -Math.PI, max: Math.PI, target: 0,    cur: 0 },
+      { name: 'J5 腕部俯仰', obj: j5, axis: 'z', min: -2.0,    max: 2.0,    target: 0.5,  cur: 0.5 },
+      { name: 'J6 工具回转', obj: j6, axis: 'y', min: -Math.PI, max: Math.PI, target: 0,    cur: 0 },
+    ];
+    const HOME = [0, 0.6, -1.0, 0, 0.5, 0];
+    let gripper = 0.6, gripperTarget = 0.6; // 0 闭合 .. 1 张开
+    let held = false;
+
+    function updateGrab() {
+      const tp = new THREE.Vector3(); tip.getWorldPosition(tp);
+      const cp = new THREE.Vector3(); crate.getWorldPosition(cp);
+      const d = tp.distanceTo(cp);
+      if (!held && gripper < 0.18 && d < 0.95) {
+        held = true; j6.attach(crate);
+        crate.position.set(0, 0.86, 0); crate.rotation.set(0, 0, 0);
+      } else if (held && gripper > 0.5) {
+        held = false; scene.attach(crate);
+      }
+    }
+
+    // 抓取反馈：吸附环 + 料箱高亮 + TCP 残影（纯视觉，不参与判定）
+    const tmpTipV = new THREE.Vector3(), tmpCrateV = new THREE.Vector3();
+    let fbT = 0;
+    function updateFeedback(dt) {
+      fbT += dt;
+      tip.getWorldPosition(tmpTipV);
+      crate.getWorldPosition(tmpCrateV);
+      const d = tmpTipV.distanceTo(tmpCrateV);
+      if (held) {
+        snapRing.visible = false;
+        crateMat.emissive.setHex(0x1f5c34);
+        crateMat.emissiveIntensity = 0.9;
+      } else {
+        snapRing.visible = d < 2.4;
+        if (snapRing.visible) {
+          snapRing.position.set(tmpCrateV.x, 0.022, tmpCrateV.z);
+          const k = clamp((2.4 - d) / 2.4, 0, 1);
+          snapRing.material.opacity = 0.16 + k * 0.62;
+          snapRing.scale.setScalar(1 + Math.sin(fbT * 4) * 0.05);
+          snapRing.material.color.setHex(d < 1.05 ? 0x5bff9a : 0x66d8ff);
+        }
+        const near = clamp((2.4 - d) / 2.4, 0, 1);
+        crateMat.emissive.setHex(d < 1.05 ? 0x1d6a42 : 0x0a2a4a);
+        crateMat.emissiveIntensity = 0.22 + near * 0.5 + Math.sin(fbT * 4) * 0.08 * near;
+      }
+
+      // TCP 轨迹残影（缓慢累积，静止时保留最后一段）
+      if (tmpTipV.distanceTo(trailLast) > 0.06) {
+        trailLast.copy(tmpTipV);
+        trailPts.push(tmpTipV.clone());
+        while (trailPts.length > TRAIL_N) trailPts.shift();
+      }
+      if (trailPts.length >= 2) {
+        for (let i = 0; i < TRAIL_N; i++) {
+          const p = trailPts[Math.min(i, trailPts.length - 1)];
+          trailPos[i * 3] = p.x; trailPos[i * 3 + 1] = p.y; trailPos[i * 3 + 2] = p.z;
+        }
+        trailGeo.attributes.position.needsUpdate = true;
+        trailGeo.setDrawRange(0, TRAIL_N);
+        trail.visible = true;
+      } else {
+        trail.visible = false;
+      }
+    }
+
+    // ---------- console UI ----------
+    const slidersEl = document.getElementById('sliders');
+    const sliderRefs = [];
+    joints.forEach((j, i) => {
+      const wrap = document.createElement('div'); wrap.className = 'slider-wrap';
+      const lab = document.createElement('div'); lab.className = 'slider-lab';
+      lab.innerHTML = `<span>${j.name}</span><span class="deg" id="deg${i}">0°</span>`;
+      const s = document.createElement('input');
+      s.type = 'range'; s.min = j.min; s.max = j.max; s.step = 0.01; s.value = j.target;
+      s.addEventListener('input', () => { j.target = parseFloat(s.value); syncJoyFromJoints(); });
+      wrap.appendChild(lab); wrap.appendChild(s);
+      slidersEl.appendChild(wrap);
+      sliderRefs.push({ s, deg: lab.querySelector('.deg') });
+    });
+
+    const knob = document.getElementById('knob');
+    const stick = document.getElementById('stick');
+    function syncJoyFromJoints() {
+      const nx = clamp(joints[0].target / Math.PI, -1, 1);
+      const ny = clamp(-joints[1].target / 1.2, -1, 1);
+      knob.style.transform = `translate(${nx * 46}px, ${ny * 46}px)`;
+      sliderRefs[0].s.value = joints[0].target;
+      sliderRefs[1].s.value = joints[1].target;
+    }
+    let joyActive = false;
+    function setJoy(cx, cy) {
+      const r = stick.getBoundingClientRect();
+      let nx = (cx - (r.left + r.width / 2)) / (r.width / 2);
+      let ny = (cy - (r.top + r.height / 2)) / (r.height / 2);
+      nx = clamp(nx, -1, 1); ny = clamp(ny, -1, 1);
+      knob.style.transform = `translate(${nx * 46}px, ${ny * 46}px)`;
+      joints[0].target = nx * Math.PI;
+      joints[1].target = -ny * 1.2;
+      sliderRefs[0].s.value = joints[0].target;
+      sliderRefs[1].s.value = joints[1].target;
+    }
+    stick.addEventListener('pointerdown', e => {
+      joyActive = true; stick.setPointerCapture(e.pointerId); setJoy(e.clientX, e.clientY); e.stopPropagation();
+    });
+    stick.addEventListener('pointermove', e => { if (joyActive) setJoy(e.clientX, e.clientY); });
+    stick.addEventListener('pointerup', () => { joyActive = false; knob.style.transform = 'translate(0,0)'; });
+    stick.addEventListener('pointercancel', () => { joyActive = false; knob.style.transform = 'translate(0,0)'; });
+
+    const gripEl = document.getElementById('grip');
+    const gripBtn = document.getElementById('gripBtn');
+    function setGrip(v) {
+      gripperTarget = clamp(v, 0, 1);
+      gripEl.value = Math.round(gripperTarget * 100);
+      gripBtn.textContent = gripperTarget < 0.5 ? '已闭合 · 点击张开' : '已张开 · 点击夹紧';
+    }
+    gripEl.addEventListener('input', () => setGrip(gripEl.value / 100));
+    gripBtn.addEventListener('click', () => setGrip(gripperTarget < 0.5 ? 1 : 0));
+
+    const speedEl = document.getElementById('speed');
+    let speed = 0.04 + (parseInt(speedEl.value) - 1) / 9 * 0.5;
+    speedEl.addEventListener('input', () => { speed = 0.04 + (parseInt(speedEl.value) - 1) / 9 * 0.5; });
+
+    document.getElementById('reset').addEventListener('click', () => {
+      joints.forEach((j, i) => j.target = HOME[i]);
+      setGrip(0.6); syncJoyFromJoints();
+    });
+
+    let auto = false, autoT = 0;
+    const demo = [
+      { t: 0,  J1: 0,    J2: 0.6,  J3: -1.0, J5: 0.5, g: 1 },
+      { t: 2,  J1: 0.9,  J2: 0.1,  J3: -1.7, J5: 1.0, g: 1 },
+      { t: 4,  J1: 0.9,  J2: 0.1,  J3: -1.7, J5: 1.0, g: 0 },
+      { t: 6,  J1: 0.9,  J2: 1.1,  J3: -0.3, J5: 0.2, g: 0 },
+      { t: 9,  J1: -0.9, J2: 1.1,  J3: -0.3, J5: 0.2, g: 0 },
+      { t: 11, J1: -0.9, J2: 0.1,  J3: -1.7, J5: 1.0, g: 0 },
+      { t: 13, J1: -0.9, J2: 0.1,  J3: -1.7, J5: 1.0, g: 1 },
+      { t: 15, J1: 0,    J2: 0.6,  J3: -1.0, J5: 0.5, g: 1 },
+    ];
+    const autoBtn = document.getElementById('auto');
+    autoBtn.addEventListener('click', () => { auto = !auto; autoT = 0; autoBtn.classList.toggle('on', auto); });
+
+    // ---------- post-processing (SSAO + Bloom + ACES) ----------
+    let composer = null, postOn = true;
+    function setupPostFX() {
+      const w = window.innerWidth, h = window.innerHeight;
+      const rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
+      composer = new THREE.EffectComposer(renderer, rt);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      const ssao = new THREE.SSAOPass(scene, camera, w, h);
+      ssao.kernelRadius = 0.6; ssao.minDistance = 0.002; ssao.maxDistance = 0.15;
+      if (THREE.SSAOPass.OUTPUT) ssao.output = THREE.SSAOPass.OUTPUT.Default;
+      composer.addPass(ssao);
+      const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(w, h), 0.22, 0.3, 1.1);
+      composer.addPass(bloom);
+      const ac = new THREE.ShaderPass(new THREE.ShaderMaterial({
+        uniforms: { tDiffuse: { value: null } },
+        vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+        fragmentShader: 'varying vec2 vUv; uniform sampler2D tDiffuse; vec3 aces(vec3 x){ float a=2.51,b=0.03,c=2.43,d=0.59,e=0.14; return clamp((x*(a*x+b))/(x*(c*x+d)+e),0.0,1.0);} void main(){ vec4 c=texture2D(tDiffuse,vUv); vec3 col=aces(c.rgb*0.78); col=pow(col,vec3(1.0/2.2)); gl_FragColor=vec4(col,1.0);} '
+      }));
+      ac.renderToScreen = true;
+      composer.addPass(ac);
+    }
+    function renderFrame() {
+      if (postOn && composer) composer.render();
+      else renderer.render(scene, camera);
+    }
+
+    // ---------- inverse kinematics (click-to-reach) ----------
+    const ray = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const marker = sph(0.12, new THREE.MeshBasicMaterial({ color: 0x39d98a }), 16); marker.visible = false; scene.add(marker);
+    let ikMode = false, moved = false, downX = 0, downY = 0;
+
+    function solveIK(tx, ty, tz) {
+      const sy = 1.46, a = 2.4, b = 4.1;
+      let dx = tx, dz = tz, dy = ty - sy;
+      let d = Math.hypot(dx, dz);
+      const j1 = Math.atan2(-dz, dx);
+      let h = dy;
+      let r = Math.hypot(d, h);
+      const rmax = a + b - 0.05, rmin = Math.abs(a - b) + 0.05;
+      if (r > rmax) { const s = rmax / r; d *= s; h *= s; r = rmax; }
+      else if (r < rmin) { const s = rmin / r; d *= s; h *= s; r = rmin; }
+      const phi = Math.atan2(h, d);
+      let cosA = (a * a + r * r - b * b) / (2 * a * r);
+      cosA = Math.max(-1, Math.min(1, cosA));
+      const A = Math.acos(cosA);
+      const alpha = phi + A;            // elbow-up
+      const j2 = alpha - Math.PI / 2;
+      const ex = a * Math.cos(alpha), ey = a * Math.sin(alpha);
+      const beta = Math.atan2(h - ey, d - ex);
+      const j3 = beta - alpha;
+      return { j1, j2, j3 };
+    }
+    function goIK(p) {
+      const s = solveIK(p.x, p.y, p.z);
+      joints[0].target = clamp(s.j1, -Math.PI, Math.PI);
+      joints[1].target = clamp(s.j2, joints[1].min, joints[1].max);
+      joints[2].target = clamp(s.j3, joints[2].min, joints[2].max);
+      joints[3].target = 0; joints[4].target = 0;
+      syncJoyFromJoints();
+    }
+
+    const postBtn = document.getElementById('postfx');
+    postBtn.addEventListener('click', () => {
+      postOn = !postOn; postBtn.classList.toggle('on', postOn);
+      postBtn.textContent = '后期 ' + (postOn ? '开' : '关');
+    });
+    const ikBtn = document.getElementById('ik');
+    ikBtn.addEventListener('click', () => {
+      ikMode = !ikMode; ikBtn.classList.toggle('on', ikMode);
+      if (!ikMode) marker.visible = false;
+    });
+
+    // expose for automated verification
+    window.__ik = (x, y, z) => { const s = solveIK(x, y, z); joints[0].target = s.j1; joints[1].target = s.j2; joints[2].target = s.j3; joints[3].target = 0; joints[4].target = 0; syncJoyFromJoints(); return s; };
+    window.__tip = () => { const v = new THREE.Vector3(); tip.getWorldPosition(v); return v; };
+    window.__setSpeed = (v) => { speed = v; };
+    window.__grip = (v) => setGrip(v);
+    window.__held = () => held;
+    window.__crate = () => { const v = new THREE.Vector3(); crate.getWorldPosition(v); return v; };
+    window.__crateLocal = () => ({ x: crate.position.x, y: crate.position.y, z: crate.position.z, parent: crate.parent === j6 ? 'j6' : 'scene' });
+
+    setupPostFX();
+
+    // ---------- camera orbit ----------
+    let dragging = false, lastX = 0, lastY = 0;
+    canvas.addEventListener('pointerdown', e => {
+      dragging = true; moved = false; downX = e.clientX; downY = e.clientY;
+      lastX = e.clientX; lastY = e.clientY; canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener('pointerup', e => {
+      dragging = false;
+      if (ikMode && !moved) {
+        ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+        ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        ray.setFromCamera(ndc, camera);
+        const hitC = ray.intersectObject(crate);
+        let p;
+        if (hitC.length) { p = crate.position.clone(); }
+        else {
+          p = new THREE.Vector3();
+          if (!ray.ray.intersectPlane(ground, p)) return;
+          p.y = 0.3;
+        }
+        marker.position.copy(p); marker.visible = true;
+        goIK(p);
+      }
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (dragging && (Math.abs(e.clientX - downX) > 4 || Math.abs(e.clientY - downY) > 4)) moved = true;
+      if (!dragging) return;
+      const dx = e.clientX - lastX, dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      camAz -= dx * 0.005;
+      camPol = clamp(camPol - dy * 0.005, 0.15, Math.PI / 2 - 0.04);
+    });
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault(); camRad = clamp(camRad + e.deltaY * 0.01, 6, 42);
+    }, { passive: false });
+
+    // ---------- resize ----------
+    function resize() {
+      const w = window.innerWidth, h = window.innerHeight;
+      renderer.setSize(w, h, false);
+      applyLens();
+      if (composer) composer.setSize(w, h);
+    }
+    window.addEventListener('resize', resize); resize();
+
+    // ---------- readout ----------
+    const readout = document.getElementById('readout');
+    const tmpV = new THREE.Vector3();
+    function updateReadout() {
+      tip.getWorldPosition(tmpV);
+      let s = `末端坐标  X ${tmpV.x.toFixed(2)}  Y ${tmpV.y.toFixed(2)}  Z ${tmpV.z.toFixed(2)}<br>`;
+      joints.forEach((j, i) => { s += `${j.name.split(' ')[0]} ${(j.cur * 180 / Math.PI).toFixed(0)}°  `; });
+      s += `<br>夹爪 ${gripper < 0.2 ? '已闭合' : gripper > 0.8 ? '已张开' : '运动中'}${held ? ' · 已抓持' : ''}`;
+      readout.innerHTML = s;
+      joints.forEach((j, i) => { sliderRefs[i].deg.textContent = `${(j.cur * 180 / Math.PI).toFixed(0)}°`; });
+    }
+
+    // ---------- animation ----------
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const k = 1 - Math.exp(-speed * 60 * dt);
+
+      if (auto) {
+        autoT += dt;
+        let i = 0; while (i < demo.length - 1 && autoT > demo[i + 1].t) i++;
+        const a = demo[i], b = demo[Math.min(i + 1, demo.length - 1)];
+        const span = Math.max(0.001, b.t - a.t); const f = clamp((autoT - a.t) / span, 0, 1);
+        joints[0].target = a.J1 + (b.J1 - a.J1) * f;
+        joints[1].target = a.J2 + (b.J2 - a.J2) * f;
+        joints[2].target = a.J3 + (b.J3 - a.J3) * f;
+        joints[4].target = a.J5 + (b.J5 - a.J5) * f;
+        setGrip(a.g + (b.g - a.g) * f);
+        if (autoT > demo[demo.length - 1].t + 2) { auto = false; autoBtn.classList.remove('on'); }
+      }
+
+      joints.forEach(j => {
+        j.target = clamp(j.target, j.min, j.max);
+        j.cur += (j.target - j.cur) * k;
+        j.obj.rotation[j.axis] = j.cur;
+      });
+      gripper += (gripperTarget - gripper) * k;
+      const gx = 0.32 + gripper * 0.22;
+      fL.position.x = gx; fR.position.x = -gx;
+
+      updateGrab();
+      updateFeedback(dt);
+      updateReadout();
+      updateCamera();
+      renderFrame();
+    }
+    setGrip(0.6);
+    animate();
+  })();
+  </script>
+</body>
+</html>

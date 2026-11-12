@@ -22,3 +22,38 @@ build/vendor/GLTFLoader.js
 # 系统文件
 Thumbs.db
 Desktop.ini
+
+# === 临时调试 / 验证 / 截图产物（本次新增） ===
+build/__pycache__/
+.zcode/
+_shots/
+
+# build 下划线临时中间文件（保留 _board_patch.js / _luhe_index.html / _extract_lessons.py）
+build/_audit.json
+build/_audit_run.js
+build/_jet2.json
+build/_ref.jpg
+build/_ref.txt
+build/_yellowobj.json
+build/_smoke_*.png
+
+# 调试探针与临时候选脚本
+probe-*.js
+build/probe-*.js
+build/ab-*.js
+build/am-close.js
+build/buo-close.js
+build/thm-close.js
+build/audit-*.js
+build/debug_*.js
+build/karst-scene.js
+build/check-copy.py
+build/step-mid.js
+build/tp-click.js
+build/verify-*.js
+build/sheet-dir.js
+build/make_physics_drafts.py
+
+# 课件源码与导出器备份
+build/lessons3d/*.bak-*
+build/make_cncmill_glb.html.bak-beforeReal

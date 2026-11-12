@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>喀斯特石林剖面模型 · 格物实验室</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: #f6f4f1;
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .cap {
+    position: fixed; left: 34px; bottom: 28px; pointer-events: none;
+    color: #2f2b26; letter-spacing: .02em;
+  }
+  .cap b {
+    display: block; font-size: 17px; font-weight: 600; letter-spacing: .12em;
+  }
+  .cap span {
+    display: block; margin-top: 6px; font-size: 11.5px; font-weight: 400;
+    color: #8b857c; letter-spacing: .16em;
+  }
+  .rule {
+    position: fixed; left: 34px; bottom: 82px; width: 40px; height: 1px;
+    background: #cfc8bd; pointer-events: none;
+  }
+  .tag {
+    position: fixed; right: 34px; bottom: 30px; pointer-events: none;
+    font-size: 11px; letter-spacing: .18em; color: #a8a29a;
+  }
+  @media (max-width: 720px) {
+    .cap { left: 18px; bottom: 18px; }
+    .cap b { font-size: 14px; }
+    .rule { left: 18px; bottom: 66px; }
+    .tag { right: 18px; bottom: 20px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="rule"></div>
+<div class="cap">
+  <b>喀斯特石林 · 剖面模型</b>
+  <span>溶蚀石林 / 拱形洞门 / 暗河沙洲 / 沉积层理</span>
+</div>
+<div class="tag">静态展示</div>
+
+<script>
+/*THREEJS*/
+</script>
+<script>
+/*APP*/
+</script>
+</body>
+</html>

@@ -789,6 +789,7 @@ K.flask = function (o) {
     }
     var menLine = new T.LineLoop(new T.BufferGeometry().setFromPoints(men.slice(0, 48)),
       new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5 }));
+    menLine.name = 'liquidMen';   /* 液面动态升降时随液面走 */
     g.add(menLine);
     /* 液面与瓶壁的接触暗线（液体贴壁处的深色细环） */
     var menDark = [];
@@ -796,8 +797,10 @@ K.flask = function (o) {
       ma = mi / 48 * Math.PI * 2;
       menDark.push(new T.Vector3(Math.cos(ma) * (mr + .03), ly - .06, Math.sin(ma) * (mr + .03)));
     }
-    g.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(menDark),
-      new T.LineBasicMaterial({ color: 0x6a2b3a, transparent: true, opacity: .3 })));
+    var menDarkLine = new T.LineLoop(new T.BufferGeometry().setFromPoints(menDark),
+      new T.LineBasicMaterial({ color: 0x6a2b3a, transparent: true, opacity: .3 }));
+    menDarkLine.name = 'liquidMenDark';
+    g.add(menDarkLine);
   }
   /* 瓶壁竖向高光：模拟窗户在玻璃上的镜面反射条（玻璃感的关键线索） */
   (function () {
@@ -1286,9 +1289,13 @@ K.stopcock = function (o) {
 /* 真实房间环境：默认背景为"远观"设计，淡墙在近景机位里是隐形的，
    窗和试剂架看起来全部悬空。调用本函数换一面实心后墙 + 侧墙围合，
    窗/试剂架/裙脚立刻"挂"在墙上；只影响调用了它的课件。 */
-var BGREF = { wall: null };
+/* roomDecor = envRoom 生成的全部墙面件。相机绕到后墙背后时整组隐藏：
+   DoubleSide 的 230×96 大墙会横在相机与实验台之间，360° 审查里背面机位
+   整屏纯灰就是这么来的。backLight 只在墙后点亮，正面观感零影响。 */
+var BGREF = { wall: null, roomDecor: [], backLight: null, _behind: null };
 K.envRoom = function (o) {
   o = o || {};
+  var _decorStart = scene.children.length;
   if (BGREF.wall) BGREF.wall.visible = false;
   (BGREF.wins || []).forEach(function (m) { m.visible = false; });
   var bc = document.createElement('canvas'); bc.width = 4; bc.height = 256;
@@ -1322,7 +1329,8 @@ K.envRoom = function (o) {
   function wallMat(color, rep) {
     var tx = wallTex.clone(); tx.needsUpdate = true;
     tx.repeat.set(rep[0], rep[1]);
-    return new T.MeshStandardMaterial({ color: color, roughness: .93, metalness: 0, map: tx, side: T.DoubleSide });
+    /* FrontSide：墙只朝室内可见，从墙背后看自动剔除（不再挡住实验台） */
+    return new T.MeshStandardMaterial({ color: color, roughness: .93, metalness: 0, map: tx });
   }
 
   /* 实心后墙：略深于背景，受光后有明暗，窗与试剂架贴在它上面 */
@@ -1339,7 +1347,7 @@ K.envRoom = function (o) {
   });
 
   /* 墙裙：下半墙一条深色带 + 分界线，近看墙面不再是均匀的白 */
-  var skirtMat = new T.MeshStandardMaterial({ color: o.skirt || 0x99a7b3, roughness: .85, metalness: 0, side: T.DoubleSide });
+  var skirtMat = new T.MeshStandardMaterial({ color: o.skirt || 0x99a7b3, roughness: .85, metalness: 0 });
   var bandB = new T.Mesh(new T.PlaneGeometry(230, 13), skirtMat);
   bandB.position.set(0, -8.6, -21.0);
   scene.add(bandB);
@@ -1374,10 +1382,11 @@ K.envRoom = function (o) {
       x.lineTo(x0 + 40 + Math.random() * 70, y0 + (Math.random() - .5) * 26);
       x.stroke();
     }
-    x.globalAlpha = .18; x.fillStyle = '#dfe9e2'; x.font = '34px Georgia, serif';
-    x.fillText('NaCl', 80, 110); x.fillText('H₂O', 340, 200);
+    /* 引擎黑板被 10 门课共用，写死 NaCl / H₂O 会在别的实验里变成
+       「不是这个实验的公式」。这里只留擦痕，具体板书由各课件自己覆盖。 */
     x.globalAlpha = .07; x.fillStyle = '#ffffff';
-    x.fillRect(60, 190, 340, 40);   /* 板擦抹过的一团淡痕 */
+    x.fillRect(60, 150, 340, 46);   /* 板擦抹过的一团淡痕 */
+    x.fillRect(300, 220, 160, 34);
     var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; return t;
   })();
   var bbMat = new T.MeshStandardMaterial({ map: bbTex, roughness: .92 });
@@ -1402,7 +1411,10 @@ K.envRoom = function (o) {
     scene.add(ch);
   });
 
-  /* 内凹窗：外框凸出墙面、四周暗色 reveal 给进深、玻璃带反光——不再是贴纸 */
+  /* 内凹窗：天光片收在框内，框/梃/reveal 尽量共面。
+     旧版 sky(-20.95)、glass(-20.72)、reveal(-20.7)、外框(-20.25)、
+     梃(-20.3) 的 z 差近 0.7，斜视时各自投影偏移，放大后读作
+     「上下两截错位」；那块整片半透明白玻璃还会叠成亮贴片，直接删掉。 */
   var skyTex = (function () {
     var c = document.createElement('canvas'); c.width = c.height = 128;
     var x = c.getContext('2d');
@@ -1419,43 +1431,57 @@ K.envRoom = function (o) {
     var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; return t;
   })();
   var skyMat = new T.MeshBasicMaterial({ map: skyTex });
-  var glassMat = new T.MeshPhysicalMaterial({
-    color: 0xdceefb, roughness: .06, metalness: 0, transparent: true, opacity: .2,
-    envMapIntensity: 1.5, side: T.DoubleSide, depthWrite: false
-  });
   var wFrameMat = new T.MeshStandardMaterial({ color: 0xa7b2bd, roughness: .5, metalness: .25 });
   var revealMat = new T.MeshStandardMaterial({ color: 0x8794a1, roughness: .9 });
   var sillMat = new T.MeshStandardMaterial({ color: 0xe4eaef, roughness: .55 });
+  var WZ = -20.5;   /* 窗框基准面：所有部件 z 差压到 0.2 以内 */
   [-16.5, 16.5].forEach(function (wx) {
-    var sky = new T.Mesh(new T.PlaneGeometry(10.4, 18.2), skyMat);
-    sky.position.set(wx, 8, -20.95); scene.add(sky);
-    var glass = new T.Mesh(new T.PlaneGeometry(10.2, 18.0), glassMat);
-    glass.position.set(wx, 8, -20.72); scene.add(glass);
-    /* reveal：窗洞四周一圈暗色斜壁，读出墙的厚度 */
-    [[0, 9.62, 11.9, .55], [0, -9.62, 11.9, .55], [-5.68, 0, .55, 19.8], [5.68, 0, .55, 19.8]].forEach(function (b) {
-      var rv = new T.Mesh(new T.BoxGeometry(b[2], b[3], 1.4), revealMat);
-      rv.position.set(wx + b[0], b[1], -20.7);
+    /* 天光片严格收进外框内净 10.1×18.0，不再越框 */
+    var sky = new T.Mesh(new T.PlaneGeometry(10.0, 17.8), skyMat);
+    sky.position.set(wx, 8, WZ - .16); scene.add(sky);
+    /* reveal：窗洞四周暗色斜壁，保留一点进深 */
+    /* 关键：所有部件都以窗心 y=8 为基准。旧版外框/reveal 的 b[1]
+       直接当绝对 y 用（中心 0），而 sky/梃在 y=8，外框整整低了 8 个单位，
+       于是上半截玻璃露出框外、下边框与玻璃错开成「两截窗」。 */
+    [[0, 9.5, 11.4, .5], [0, -9.5, 11.4, .5], [-5.5, 0, .5, 19.5], [5.5, 0, .5, 19.5]].forEach(function (b) {
+      var rv = new T.Mesh(new T.BoxGeometry(b[2], b[3], .8), revealMat);
+      rv.position.set(wx + b[0], 8 + b[1], WZ - .08);
       scene.add(rv);
     });
-    /* 外框 4 条（凸出墙面） */
-    [[0, 9.35, 11.2, .6], [0, -9.35, 11.2, .6], [-5.5, 0, .6, 19.3], [5.5, 0, .6, 19.3]].forEach(function (b) {
-      var bar = new T.Mesh(new T.BoxGeometry(b[2], b[3], 1.1), wFrameMat);
-      bar.position.set(wx + b[0], b[1], -20.25);
+    /* 外框 4 条 */
+    [[0, 9.25, 10.8, .5], [0, -9.25, 10.8, .5], [-5.3, 0, .5, 19.0], [5.3, 0, .5, 19.0]].forEach(function (b) {
+      var bar = new T.Mesh(new T.BoxGeometry(b[2], b[3], .7), wFrameMat);
+      bar.position.set(wx + b[0], 8 + b[1], WZ);
       scene.add(bar);
     });
-    /* 中竖梃 + 两道横梃（2×3 格） */
-    var vm = new T.Mesh(new T.BoxGeometry(.44, 18.1, .9), wFrameMat);
-    vm.position.set(wx, 8, -20.3); scene.add(vm);
-    [-3.2, 3.2].forEach(function (yy) {
-      var hm = new T.Mesh(new T.BoxGeometry(10.4, .42, .9), wFrameMat);
-      hm.position.set(wx, 8 + yy, -20.3); scene.add(hm);
+    /* 中竖梃 + 两道横梃（2×3 格），与外框共面消除上下错位 */
+    var vm = new T.Mesh(new T.BoxGeometry(.4, 18.0, .7), wFrameMat);
+    vm.position.set(wx, 8, WZ); scene.add(vm);
+    [-3.0, 3.0].forEach(function (yy) {
+      var hm = new T.Mesh(new T.BoxGeometry(10.0, .38, .7), wFrameMat);
+      hm.position.set(wx, 8 + yy, WZ); scene.add(hm);
     });
     /* 窗台：石面窗台在窗下沿，窗"坐"在上面 */
-    var sill = new T.Mesh(new T.BoxGeometry(12.2, .75, 2.0), sillMat);
-    sill.position.set(wx, -1.45, -20.0);
+    var sill = new T.Mesh(new T.BoxGeometry(11.6, .7, 1.6), sillMat);
+    sill.position.set(wx, -1.5, WZ + .2);
     sill.castShadow = true;
     scene.add(sill);
   });
+
+  /* 360° 可看：登记本函数新建的墙面件；绕到墙后时整组隐藏 + 背面补光 */
+  BGREF.roomDecor = scene.children.slice(_decorStart);
+  /* init3d 的「远观」默认背景里，除已隐藏的淡墙/窗片，墙裙、踢脚、试剂架等
+     实体件仍立在 z<-19 处；绕到墙后会在画面边缘留下白色斜片，一并纳入整组。
+     只收当前可见的，避免把 envRoom 已隐藏的淡墙又打开。 */
+  for (var _j = 0; _j < _decorStart; _j++) {
+    var _o = scene.children[_j];
+    if (_o.isMesh && _o.visible && _o.position.z < -19) BGREF.roomDecor.push(_o);
+  }
+  if (!BGREF.backLight) {
+    BGREF.backLight = new T.DirectionalLight(0xffffff, 0);
+    BGREF.backLight.position.set(-16, 26, -38);
+    scene.add(BGREF.backLight);
+  }
 };
 
 /* ---------------- 实训车间 / 工位环境（职教线） ----------------
@@ -1703,8 +1729,8 @@ K.bench = function (w, d) {
   var TOP_H = 2.4, H = 13.2;
 
   var topMat = new T.MeshPhysicalMaterial({
-    color: 0x171d21, roughness: .42, metalness: .06, envMapIntensity: .45,
-    clearcoat: .55, clearcoatRoughness: .3, map: benchTexture()
+    color: 0x171d21, roughness: .55, metalness: .06, envMapIntensity: .3,
+    clearcoat: .3, clearcoatRoughness: .5, map: benchTexture()
   });
   var top = new T.Mesh(new T.BoxGeometry(w + 2, TOP_H, d + 2), topMat);
   top.position.y = -TOP_H / 2;
@@ -1977,10 +2003,14 @@ function setupPostfx() {
     composer.addPass(new T.RenderPass(scene, camera));
   }
   if (T.UnrealBloomPass) {
-    composer.addPass(new T.UnrealBloomPass(new T.Vector2(W, H), .38, .25, 1.1));
+    /* 浅色实验室课件可传 cfg.bloom 压泛光；默认 .38 保持不变 */
+    composer.addPass(new T.UnrealBloomPass(new T.Vector2(W, H),
+      cfg.bloom !== undefined ? cfg.bloom : .38, .25, 1.1));
   }
   var FinalShader = {
-    uniforms: { tDiffuse: { value: null }, uExposure: { value: .9 } },
+    /* cfg.exposure 控制终合 ACES 曝光；浅色实验室建议 .78 */
+    uniforms: { tDiffuse: { value: null },
+      uExposure: { value: cfg.exposure !== undefined ? cfg.exposure : .9 } },
     vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
     fragmentShader:
       'uniform sampler2D tDiffuse; uniform float uExposure; varying vec2 vUv;' +
@@ -2064,6 +2094,64 @@ function resize() {
   if (composer) composer.setSize(W, H);
 }
 
+/* ── 步骤过渡 ──────────────────────────────────────────────
+   apply() 里大量直接写 position/rotation/scale，切步骤时器材会瞬移。
+   这里在 apply 前后各拍一次变换快照，对变化的对象做 0.55s 缓入缓出补间。
+   每帧在 scene.update 之前推进：若某对象的位置由 update 每帧重算，补间
+   会被 update 覆盖（不生效也不抖动）；只在 apply 一次定型的器材上生效。 */
+var _stepTweens = null;
+function snapshotStepTransforms() {
+  var snap = new Map();
+  scene.traverse(function (o) {
+    if (o === scene || o.isLight || o.isCamera || o.isSprite) return;
+    if (BGREF.roomDecor && BGREF.roomDecor.indexOf(o) >= 0) return;
+    if (!o.visible) return;
+    snap.set(o.uuid, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() });
+  });
+  return snap;
+}
+function beginStepTweens(snap) {
+  _stepTweens = [];
+  window.__stepTweens = 0;
+  if (!snap) return;
+  var _dbg = { snap: snap.size, seen: 0, miss: 0, moved: 0 };
+  scene.traverse(function (o) {
+    if (o === scene || o.isLight || o.isCamera || o.isSprite) return;
+    if (BGREF.roomDecor && BGREF.roomDecor.indexOf(o) >= 0) return;
+    _dbg.seen++;
+    var b = snap.get(o.uuid);
+    if (!b) { _dbg.miss++; return; }
+    if (!o.visible) return;
+    var moved = b.p.distanceToSquared(o.position) > 4e-4;
+    var turned = b.q.angleTo(o.quaternion) > 1e-3;
+    var scaled = b.s.distanceToSquared(o.scale) > 4e-4;
+    if (!moved && !turned && !scaled) return;
+    _dbg.moved++;
+    _stepTweens.push({ o: o, p0: b.p, p1: o.position.clone(), q0: b.q, q1: o.quaternion.clone(),
+      s0: b.s, s1: o.scale.clone(), t: 0, dur: .55 });
+    o.position.copy(b.p); o.quaternion.copy(b.q); o.scale.copy(b.s);
+  });
+  window.__stepDebug = _dbg;
+}
+function updateStepTweens(dt) {
+  if (!_stepTweens || !_stepTweens.length) return;
+  for (var i = _stepTweens.length - 1; i >= 0; i--) {
+    var tw = _stepTweens[i];
+    tw.t = Math.min(1, tw.t + dt / tw.dur);
+    var e = tw.t < .5 ? 2 * tw.t * tw.t : -1 + (4 - 2 * tw.t) * tw.t;
+    tw.o.position.lerpVectors(tw.p0, tw.p1, e);
+    tw.o.quaternion.slerpQuaternions(tw.q0, tw.q1, e);
+    tw.o.scale.lerpVectors(tw.s0, tw.s1, e);
+    if (tw.t >= 1) {
+      tw.o.position.copy(tw.p1); tw.o.quaternion.copy(tw.q1); tw.o.scale.copy(tw.s1);
+      _stepTweens.splice(i, 1);
+    }
+  }
+  window.__stepTweens = _stepTweens.length;
+}
+
+var _stepBooted = false;
+var _stepPending = null;   // { pre: 快照, frames }：等 update 跑完一帧再比对
 function goStep(i) {
   stepIdx = Math.max(0, Math.min(i, cfg.steps.length - 1));
   quizPick = null;
@@ -2074,7 +2162,12 @@ function goStep(i) {
   Object.keys(state).forEach(function (k) {
     if (typeof state[k] === 'number') before[k] = state[k];
   });
+  /* 很多课件 apply 只改状态、位置在下一帧 update 里才重算，所以 apply 前后
+     直接比对抓不到跳变。这里只拍 apply 前的快照，等 update 跑过一帧再比。 */
+  var _pre = _stepBooted ? snapshotStepTransforms() : null;
   if (s.apply) s.apply(state);
+  _stepPending = _pre ? { pre: _pre, frames: 0 } : null;
+  _stepBooted = true;
   /* 逐步机位：步骤里写 cam:{...} 就平滑推过去；没写就沿用当前视角。
      用户一旦拖动/滚轮，补间立即中断，控制权交还给人。 */
   if (s.cam) flyTo(s.cam, s.camDur);
@@ -2096,6 +2189,11 @@ function goStep(i) {
     state[k] = before[k];
   });
   renderPanel();
+  /* 面板文字与按钮跟着步进淡入，避免右侧「啪」地换一屏字 */
+  if (ui.body) {
+    ui.body.classList.remove('swap'); void ui.body.offsetWidth; ui.body.classList.add('swap');
+    if (ui.ctrls) { ui.ctrls.classList.remove('swap'); void ui.ctrls.offsetWidth; ui.ctrls.classList.add('swap'); }
+  }
 }
 
 /* 推进状态补间（缓入缓出） */
@@ -2231,6 +2329,15 @@ function updateCamera() {
     cam.ty + cam.dist * sp,
     cam.tz + cam.dist * cp * Math.cos(cam.yaw));
   camera.lookAt(cam.tx, cam.ty, cam.tz);
+  /* 相机绕到后墙背后：隐藏墙面装饰并点亮背面补光；回到室内自动还原 */
+  if (BGREF.roomDecor && BGREF.roomDecor.length) {
+    var behind = camera.position.z < -20.9;
+    if (BGREF._behind !== behind) {
+      BGREF._behind = behind;
+      for (var _i = 0; _i < BGREF.roomDecor.length; _i++) BGREF.roomDecor[_i].visible = !behind;
+      if (BGREF.backLight) BGREF.backLight.intensity = behind ? .72 : 0;
+    }
+  }
 }
 
 /* 逐步机位补间：只补步骤里给出的字段，其余保持当前值 */
@@ -2306,6 +2413,14 @@ function loop(t) {
   updateTween(dt);
   updateCamTween(dt);
   if (cfg.scene && cfg.scene.update) cfg.scene.update(dt, state);
+  /* 步进补间放在 scene.update 之后：很多课件每帧把器材重算到目标位，
+     补间必须先让 update 写目标值、再覆盖成插值，否则永远被覆盖掉。
+     pending 只在切步后的第一帧比对一次，抓住 update 写出的跳变。 */
+  if (_stepPending && ++_stepPending.frames >= 1) {
+    beginStepTweens(_stepPending.pre);
+    _stepPending = null;
+  }
+  updateStepTweens(dt);
   updateRamps(dt);
   K.updateMoves(dt);
   updateFlames(dt);

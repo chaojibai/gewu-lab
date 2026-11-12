@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>化学实验器材 · 高模 GLB 生成器</title></head>
+<body>
+<!--
+  格物实验室 · 素养线化学实验 · 共用器材高模库
+  ------------------------------------------------------------------
+  与"程序化 primitive"的本质区别（这是"没质感"的根因）：
+    · 玻璃器壁有真实厚度：一条闭合轮廓 Lathe 同时生成外壁→卷口→内壁→内底，
+      不是一张厚度为 0 的半透明圆柱片。
+    · 卷口（beaded rim）、倾倒嘴、底部圆角、锥形瓶肩线都是几何，不是描边线。
+    · 刻度是凸起的几何短线（印刷釉），不是贴图；远景也不糊。
+    · 酒精灯有灯芯座、棉芯、焦黑芯头、带提钮的灯帽（真实器材的所有小件）。
+
+  约定：
+    1. 原点在器材底面中心，y 向上，与课件台面 y=0 对齐；1 单位 ≈ 4.6 cm。
+    2. 顶层 3 个命名 Group：CHEM_BEAKER / CHEM_FLASK / CHEM_LAMP，课件按名取用。
+    3. GLB 只带纯色底材；导出前把材质键编进 mesh.name 前缀 "MAT_<key>__"，
+       课件加载后按前缀精确升级 PBR（GLTFLoader 会漂移色号/丢 material.name）。
+    4. 共享同尺寸几何，控制 GLB 体积。
+-->
+<script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFExporter.js"></script>
+<script src="chem-kit.js"></script>
+<script>
+(function () {
+  'use strict';
+  var T = window.THREE, C = window.ChemKit;
+  var ROOT = new T.Group(); ROOT.name = 'CHEM_GLASSWARE';
+  window.__GLB_NODES = [];
+  window.__GLB_DONE = false;
+  window.__GLB_ERR = '';
+
+  /* 单一真源：几何与课件完全共用 chem-kit.js 的 createAsset 工厂；
+     导出时把材质键编进 mesh.name（GLTFLoader 会丢 material.name）。 */
+  Object.keys(C.SPEC).forEach(function (id) {
+    var asset = C.create(id, {});
+    ROOT.add(asset);
+    window.__GLB_NODES.push(asset.name);
+  });
+
+  function ab2b64(buf) {
+    var bytes = new Uint8Array(buf), n = bytes.length, out = '', CH = 0x8000, i;
+    for (i = 0; i < n; i += CH)
+      out += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + CH, n)));
+    return btoa(out);
+  }
+  try {
+    var exp = new T.GLTFExporter();
+    exp.parse(ROOT, function (result) {
+      if (!(result instanceof ArrayBuffer)) { window.__GLB_ERR = 'exporter did not return ArrayBuffer'; return; }
+      window.__GLB_B64 = ab2b64(result);
+      window.__GLB_BYTES = result.byteLength;
+      window.__GLB_DONE = true;
+    }, function (e) { window.__GLB_ERR = String(e && (e.stack || e.message || e)); },
+      { binary: true, onlyVisible: false, trs: false });
+  } catch (e) { window.__GLB_ERR = String(e && (e.stack || e)); }
+})();
+</script>
+</body>
+</html>
