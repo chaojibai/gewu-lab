@@ -1,21 +1,60 @@
-MIT License
+# 格物实验室 · 版权与许可
 
-Copyright (c) 2026 张鑫瑞
+版权所有 © 2026 格物实验室（GEWU LAB）。保留所有权利。
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+本仓库（鲁教版化学 / 物理 3D 交互课件）以
+**知识共享署名-非商业性使用 4.0 国际许可协议（CC BY-NC 4.0）** 授权。
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+正式许可文本见：<https://creativecommons.org/licenses/by-nc/4.0/legalcode>
+人类可读摘要见：<https://creativecommons.org/licenses/by-nc/4.0/deed.zh>
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+---
+
+## 一、你可以
+
+- **用于教学与科研**：在中小学、培训机构（非营利性质）、高校课堂、公开课、教研活动中
+  演示、分享、讲解这些课件；
+- **下载、拷贝、离线使用**：每个课件都是单文件 HTML，断网双击即可打开；
+- **改编用于教学**：在其基础上修改、翻译、二次创作，用于教学场景；
+- **署名后传播**：在保留署名与许可声明的前提下，分享给同行或学生。
+
+## 二、你不可以
+
+- **用于任何商业目的**：包括但不限于商业培训收费、付费课程/订阅、售卖课件或其衍生品、
+  在商业产品/广告中植入获利；
+- **移除著作权与许可声明**；
+- **将本作品据为己有或主张为自有版权**。
+
+> 简言之：**仅限教学 / 科研使用，禁止商用、禁止售卖。** 若你有商业使用需求，
+> 须事先联系权利人获得书面授权。
+
+---
+
+## 三、署名要求（CC BY）
+
+任何传播、展示、改编都需要：
+1. **注明作者**：格物实验室（GEWU LAB）；
+2. **标注许可**：CC BY-NC 4.0，并附上许可链接；
+3. **说明是否修改**：若做了改动，注明「已修改」。
+
+---
+
+## 四、第三方组件与署名
+
+本仓库在创作过程中参考了以下公开资料，**仅参考做法与思路，未复制其代码、文案或美术素材**：
+
+- **three.js（r147）** —— MIT License，© 2010–2023 three.js authors。
+  其完整库以内联方式嵌入于每个课件 HTML 中，相关的 MIT 版权声明保留在对应文件内，
+  受 MIT 许可约束，允许非商业再分发。
+- **tongjiang-lab（铜匠实验室）** —— CC BY-NC 4.0。
+  本项目的「单文件 3D 课件」形式受其其中一个课件的形态启发；未复制其代码、文案或美术素材。
+- **molecular-lab** 等 —— 分子模型的 CPK 配色、原子半径、键长键角等数据，详见 `NOTICE.md`。
+
+第三方内容各自受其原许可约束，不因本仓库采用 CC BY-NC 4.0 而获得商用授权。
+
+---
+
+## 五、免责声明
+
+本课件依相关教材与课程标准编写，力求准确，但**不保证与任一特定版本教材逐字对应**，
+亦不对因使用本课件产生的任何后果承担责任。课件内容仅供教学参考。

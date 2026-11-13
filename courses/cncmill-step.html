@@ -10183,7 +10183,7 @@ return K;
   var LEAD = 5;                             /* 手轮 1 转 = 5 mm */
   var BW = 100, BD = 70, BH = 40;           /* 工件 mm（NX=BW+1 列 × NZ=BD+1 行） */
   var TOOL_R = 6;                           /* φ12 立铣刀 */
-  var O = {}, G = null, CV = null;
+  var O = {}, G = null, CV = null, YUP = new T.Vector3(0, 1, 0);
 
   /* ── ② 材质：按参考图——深蓝烤漆机身 + 奶白工作台 + 乳白铸件内腔 ──
      质感三件事：① 漆面 clearcoat 低粗糙（新机器的高光条）
@@ -10382,7 +10382,22 @@ return K;
   function RM(w, h, d, r, mat) { return new T.Mesh(K.geoRoundBox(w, h, d, r == null ? .14 : r, 3), mat); }
   function BX(w, h, d, mat) { return new T.Mesh(new T.BoxGeometry(w, h, d), mat); }
   function CY(r, h, mat, seg) { return new T.Mesh(new T.CylinderGeometry(r, r, h, seg || 24), mat); }
-  function shadow(o) { o.traverse(function (m) { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } }); }
+  /* userData.noShadow：贴在面板上的丝印/屏幕平面。它们是带 map 的透明平面，
+     一旦 castShadow，就会在面板上投出整块黑方块的影子（面板看起来"脏"）。 */
+  function shadow(o) {
+    o.traverse(function (m) {
+      if (!m.isMesh) return;
+      if (m.userData.noShadow) { m.castShadow = false; m.receiveShadow = false; return; }
+      m.castShadow = true; m.receiveShadow = true;
+    });
+  }
+  /* 贴面板的丝印平面：不投影、不接收阴影 */
+  function decal(w, h, tex, opt) {
+    var m = new T.Mesh(new T.PlaneGeometry(w, h),
+      new T.MeshBasicMaterial(Object.assign({ map: tex, transparent: true }, opt || {})));
+    m.userData.noShadow = true;
+    return m;
+  }
 
   var boltGeo = new T.CylinderGeometry(.13, .13, .24, 6);   /* 共享几何：内六角螺栓 */
   function bolt(x, y, z, mat) { var b = new T.Mesh(boltGeo, mat || MAT.darkM); b.position.set(x, y, z); return b; }
@@ -10432,22 +10447,29 @@ return K;
 
   function handwheel(r, spokes, mat) {
     var g = new T.Group();
-    g.add(new T.Mesh(new T.TorusGeometry(r, .13, 8, 30), mat));
-    var hub = CY(.38, .45, MAT.steelD, 16); hub.rotation.x = PI / 2; g.add(hub);
+    /* 轮圈截面 .22（≈11 mm）：旧版 .13 在近景里读作"铁丝圈" */
+    g.add(new T.Mesh(new T.TorusGeometry(r, .22, 10, 40), mat));
+    /* 轮毂：加大的圆柱 + 端盖 + 中心并紧螺母，轮子才像"装在轴上" */
+    var hub = CY(.56, .68, MAT.steelD, 22); hub.rotation.x = PI / 2; g.add(hub);
+    var hubCap = CY(.40, .12, MAT.dark, 18); hubCap.rotation.x = PI / 2; hubCap.position.z = .40; g.add(hubCap);
+    var hubNut = CY(.15, .16, MAT.steel, 6); hubNut.rotation.x = PI / 2; hubNut.position.z = .49; g.add(hubNut);
     for (var i = 0; i < spokes; i++) {
-      var sp = BX(r * 2 - .2, .16, .16, mat);
+      /* 辐板：.30 宽 × .26 厚（≈15×13 mm），不是自行车辐条 */
+      var sp = BX(r * 2 - .34, .30, .26, mat);
       sp.rotation.z = i * TAU / spokes; g.add(sp);
     }
-    var knob = CY(.17, .6, MAT.dark, 12);
-    knob.position.set(r - .15, 0, .34); g.add(knob);
-    var stem = CY(.09, .5, MAT.steelD, 10);
-    stem.position.set(r - .15, 0, .12); g.add(stem);
+    /* 手柄：球头 + 金属杆，沿轮轴方向朝外 */
+    var stem = CY(.10, .62, MAT.steelD, 10);
+    stem.rotation.x = PI / 2; stem.position.set(r - .06, 0, .30); g.add(stem);
+    var knob = new T.Mesh(new T.SphereGeometry(.24, 14, 12), MAT.dark);
+    knob.position.set(r - .06, 0, .62); g.add(knob);
     return g;
   }
-  /* 手轮装配：外层 mount 定朝向（法线 → X），内层 wheel 只绕自身 Z 自转；
-     全部 mesh 标记 ctl，点击即可摇动该轴 */
-  function wheelMount(x, y, z, r, spokes, mat, ctl, name, desc) {
-    var mount = new T.Group(); mount.position.set(x, y, z); mount.rotation.y = PI / 2;
+  /* 手轮装配：外层 mount 定朝向（默认法线 → X），内层 wheel 只绕自身 Z 自转；
+     全部 mesh 标记 ctl，点击即可摇动该轴。rotY 传 0 时法线朝 +Z（正对操作者）。 */
+  function wheelMount(x, y, z, r, spokes, mat, ctl, name, desc, rotY) {
+    var mount = new T.Group(); mount.position.set(x, y, z);
+    mount.rotation.y = rotY === undefined ? PI / 2 : rotY;
     var hw = handwheel(r, spokes, mat); mount.add(hw);
     K.tag(hw, name, desc);
     hw.traverse(function (m) { if (m.isMesh) { m.userData.ctl = ctl; O.ctlMeshes.push(m); } });
@@ -10496,6 +10518,7 @@ return K;
     var c = document.createElement('canvas'); c.width = 512; c.height = 320;
     O.scrC = c; O.scrX = c.getContext('2d'); O.scrT = new T.CanvasTexture(c);
     var m = new T.Mesh(new T.PlaneGeometry(6.6, 4.1), new T.MeshBasicMaterial({ map: O.scrT }));
+    m.userData.noShadow = true;
     var fr = RM(7.1, 4.6, .35, .1, MAT.dark); fr.position.z = -.22;
     var g = new T.Group(); g.add(fr); g.add(m);
     return g;
@@ -10559,19 +10582,75 @@ return K;
       x.fillText(String(sp[i] || ''), 28 + i * 91, 122);
       x.fillText('L ' + (i + 1), 28 + i * 91, 164);
     }
-    /* 下排：铭牌参数 */
-    x.strokeStyle = '#9aa1a6'; x.strokeRect(20, 202, 728, 160);
-    x.fillStyle = '#22303c'; x.font = 'bold 22px sans-serif'; x.fillText('MX-4LW  炮塔式万能铣床', 36, 236);
-    x.font = '19px monospace'; x.fillStyle = '#2d3842';
-    ['MOTOR  2.2 kW / 1450 r/min     SPINDLE  R8',
-     'TABLE  1270 x 254 mm   3 T-SLOTS  T型槽宽 16',
-     'TRAVEL X780  Y380  Z300     QUILL 80 mm',
-     '主轴轴向跳动 0.005 mm   工作台平行度 0.008/300',
-     'NET WEIGHT 1300 kg      NO. 2024-MX4LW-0862'].forEach(function (r, k) { x.fillText(r, 36, 268 + k * 23); });
+    /* 下排：铭牌参数（只保留两行 —— 再往下会被中央凸出的套筒面板挡住） */
+    x.strokeStyle = '#9aa1a6'; x.strokeRect(20, 192, 728, 68);
+    x.fillStyle = '#22303c'; x.font = 'bold 20px sans-serif'; x.fillText('MX-4LW  炮塔式万能铣床', 32, 214);
+    /* 参数分左右两栏：中间 x 229…539 会被凸出的套筒面板压住，必须避开 */
+    x.font = '15px monospace'; x.fillStyle = '#2d3842';
+    ['MOTOR 2.2 kW 1450', 'TABLE 1270×254'].forEach(function (r, k) { x.fillText(r, 32, 236 + k * 19); });
+    ['R8 QUILL 80', 'TRAVEL 780/380/300'].forEach(function (r, k) { x.fillText(r, 556, 236 + k * 19); });
     var t = new T.CanvasTexture(c);
     if (T.sRGBEncoding) t.encoding = T.sRGBEncoding;
     return new T.Mesh(new T.PlaneGeometry(7.45, 3.88),
       new T.MeshStandardMaterial({ map: t, roughness: .62, metalness: .06 }));
+  }
+  /* 机头警示牌：黄底黑边菱形 + 闪电符号 + 底部小字，一眼能读出"当心触电" */
+  function warnPlate() {
+    var c = document.createElement('canvas'); c.width = 256; c.height = 320;
+    var x = c.getContext('2d');
+    x.fillStyle = '#e8c227'; x.fillRect(0, 0, 256, 320);
+    x.strokeStyle = '#22201a'; x.lineWidth = 10; x.strokeRect(6, 6, 244, 308);
+    /* 菱形警告框 */
+    x.save();
+    x.translate(128, 132);
+    x.rotate(Math.PI / 4);
+    x.fillStyle = '#1c1a15'; x.fillRect(-74, -74, 148, 148);
+    x.fillStyle = '#e8c227'; x.fillRect(-65, -65, 130, 130);
+    x.restore();
+    /* 闪电 */
+    x.fillStyle = '#1c1a15';
+    x.beginPath();
+    x.moveTo(140, 74); x.lineTo(96, 138); x.lineTo(124, 138);
+    x.lineTo(110, 194); x.lineTo(160, 122); x.lineTo(130, 122);
+    x.closePath(); x.fill();
+    x.fillStyle = '#22201a';
+    x.font = 'bold 27px "Microsoft YaHei",sans-serif'; x.textAlign = 'center';
+    x.fillText('当心触电', 128, 264);
+    x.font = '15px "Microsoft YaHei",sans-serif';
+    x.fillText('WARNING', 128, 290);
+    var t = new T.CanvasTexture(c);
+    if (T.sRGBEncoding) t.encoding = T.sRGBEncoding;
+    return new T.Mesh(new T.PlaneGeometry(.82, 1.02),
+      new T.MeshStandardMaterial({ map: t, roughness: .62, metalness: .05 }));
+  }
+  /* 数显表屏幕：深底数码管 + X/Y/Z 实时读数（随工作台真实移动） */
+  function droScreen() {
+    var c = document.createElement('canvas'); c.width = 400; c.height = 240;
+    var t = new T.CanvasTexture(c);
+    if (T.sRGBEncoding) t.encoding = T.sRGBEncoding;
+    O.droC = c; O.droX = c.getContext('2d'); O.droT = t;
+    drawDro({ xmm: 0, ymm: 0, zmm: 0 });
+    var sm = new T.Mesh(new T.PlaneGeometry(2.35, 1.41),
+      new T.MeshBasicMaterial({ map: t }));
+    sm.userData.noShadow = true;
+    return sm;
+  }
+  function drawDro(s) {
+    if (!O.droX) return;
+    var x = O.droX;
+    x.fillStyle = '#04120b'; x.fillRect(0, 0, 400, 240);
+    x.strokeStyle = '#1c3a2a'; x.lineWidth = 5; x.strokeRect(5, 5, 390, 230);
+    x.font = 'bold 14px monospace'; x.fillStyle = '#2f9c67';
+    x.fillText('DRO  0.01 mm', 18, 30);
+    x.font = 'bold 40px monospace';
+    [['X', s.xmm, 80], ['Y', s.ymm, 138], ['Z', s.zmm, 196]].forEach(function (r) {
+      x.fillStyle = '#2f9c67'; x.fillText(r[0], 18, r[2]);
+      x.fillStyle = '#5effa8';
+      x.fillText((r[1] >= 0 ? '+' : '') + r[1].toFixed(2), 56, r[2]);
+    });
+    x.font = 'bold 13px monospace'; x.fillStyle = '#2f9c67';
+    x.fillText('mm', 344, 80);
+    O.droT.needsUpdate = true;
   }
   function motorPlate() {
     var c = document.createElement('canvas'); c.width = 384; c.height = 176;
@@ -10714,8 +10793,11 @@ return K;
     K.tag(up, '变速锥盘（Reeves）', '可动盘轴向滑移改变带轮工作半径：盘靠近 → 带往外走 → 主轴变快');
     return { g: g, up: up, dn: dn };
   }
-  function layoutSheave(sh, r) {
-    var off = .04 + (.74 - r) * .9;
+  /* open：剖视时两片锥盘再沿轴向张开多少。张开后 V 槽露出来，带才看得见。
+     旧做法是「上带轮整体抬起 1.9、带抬起 .52」——带被顶进下带轮的上盘体内，
+     反而一点都看不见（近景只剩一截横杠）。 */
+  function layoutSheave(sh, r, open) {
+    var off = .04 + (.74 - r) * .9 + (open || 0);
     sh.up.position.y = .53 + off;
     sh.dn.position.y = -.53 - off;
   }
@@ -10823,10 +10905,12 @@ return K;
       'Z 垂向摇杆（可点击）', '点上半圈升降台升 5 mm、下半圈降 5 mm；丝杠转、螺母带台走');
     g.add(lc.mount); O.liftCrank = lc.wheel;
 
-    /* 冷却软管 */
+    /* 回液软管：接屑盘里的切削液靠这根管自流回底座水箱（泵在底座里，
+       吸上来从机头喷嘴喷出）。原来它被标成「冷却液软管 · 对准刀尖浇」，
+       可几何上一头扎在底座、一头挂在立柱上，名实不符。 */
     var hose = cable([-3.6, GROUND + 9.4, 2.6], [-1.0, -12.0, 1.4], .45, MAT.hose);
     g.add(hose);
-    K.tag(hose, '冷却液软管', '泵把切削液从底座水箱打上来对准刀尖浇；铣削发热不加冷却液会烧刀');
+    K.tag(hose, '切削液回液管', '接屑盘 → 底座水箱自流回液；泵在底座里，吸上来后从机头喷嘴喷向刀尖');
     [0.3, 0.6].forEach(function (t2) {
       var p = hose.geometry.parameters.path.getPoint(t2);
       var clip = new T.Mesh(new T.TorusGeometry(.3, .09, 6, 14), MAT.darkM);
@@ -10856,25 +10940,40 @@ return K;
     var feedIdle = CY(.62, .34, MAT.gear, 20); feedIdle.rotation.z = PI / 2;
     feedIdle.position.set(-14.2, -1.75, 5.6); O.knee.add(feedIdle);
     O.feedWheels.push(feedIdle);
+    /* X 丝杠中段防护罩：整根螺旋裸在外面像一根横弹簧。
+       只盖中段，两端留出来看丝杠转、手轮走。 */
+    var fsGuard = BX(13.0, .26, 1.35, MAT.blueD); fsGuard.position.set(0, -1.36, 5.6); O.knee.add(fsGuard);
+    var fsGuardLip = BX(13.0, .10, .18, MAT.blueL); fsGuardLip.position.set(0, -1.22, 5.0); O.knee.add(fsGuardLip);
+    [-6.4, 6.4].forEach(function (gx) {
+      var gp = BX(.42, .62, 1.35, MAT.blueD); gp.position.set(gx, -1.52, 5.6); O.knee.add(gp);
+    });
 
-    /* Y 手轮 */
-    var yw = wheelMount(-3.6, -2.6, 7.15, 1.75, 3, MAT.dark, { act: 'wheel', key: 'ymm', step: 5 },
-      'Y 横向手轮（可点击）', '上半圈鞍座向前、下半圈向后，行程 ±190 mm');
+    /* Y 手轮：轴沿 Z（朝操作者），与下面那根丝杠头 / 轴承座同轴。
+       旧版沿用 wheelMount 默认的 rotation.y=PI/2，轮面朝 ±X —— 轮子和自己
+       的轴成 90°，近景看是"侧着装的轮子"。 */
+    var yw = wheelMount(-3.6, -2.6, 7.30, 1.75, 3, MAT.dark, { act: 'wheel', key: 'ymm', step: 5 },
+      'Y 横向手轮（可点击）', '上半圈鞍座向前、下半圈向后，行程 ±190 mm', 0);
     O.knee.add(yw.mount); O.yWheel = yw.wheel;
-    var ystem = CY(.3, 1.5, MAT.steelD, 14); ystem.rotation.x = PI / 2;
-    ystem.position.set(-3.6, -2.6, 6.5); O.knee.add(ystem);
-    /* 轴承座 + 压盖：手轮必须读得出「装在升降台前壁上」，不能悬空 */
-    var yBr = RM(1.3, 1.3, 1.15, .14, MAT.castGray);
-    yBr.position.set(-3.6, -2.6, 6.35); O.knee.add(yBr);
-    var yFl = CY(.82, .20, MAT.steelD, 20); yFl.rotation.x = PI / 2;
-    yFl.position.set(-3.6, -2.6, 6.97); O.knee.add(yFl);
+    var ystem = CY(.30, 1.90, MAT.steelD, 14); ystem.rotation.x = PI / 2;
+    ystem.position.set(-3.6, -2.6, 6.65); O.knee.add(ystem);
+    /* 轴承座：方座 + 圆形压盖 + 四颗螺栓，手轮才像"装在箱体上" */
+    var yBr = RM(1.55, 1.55, .95, .16, MAT.castGray);
+    yBr.position.set(-3.6, -2.6, 6.40); O.knee.add(yBr);
+    var yFl = CY(1.02, .22, MAT.steelD, 24); yFl.rotation.x = PI / 2;
+    yFl.position.set(-3.6, -2.6, 6.96); O.knee.add(yFl);
+    [[-.52, -.52], [.52, -.52], [-.52, .52], [.52, .52]].forEach(function (p) {
+      var bs = CY(.11, .24, MAT.darkM, 6); bs.rotation.x = PI / 2;
+      bs.position.set(-3.6 + p[0], -2.6 + p[1], 7.00); O.knee.add(bs);
+    });
 
-    /* 数显表：嵌进升降台前壁，外面一圈深色边框 —— 之前白盒孤零零凸在丝杠上方 */
-    var droRim = BX(3.55, 3.45, .16, MAT.dark); droRim.position.set(4.4, -2.85, 8.14); O.knee.add(droRim);
-    var dro = draftBox(3.2, 3.1, 2.2, 1.4, MAT.white); dro.position.set(4.4, -2.85, 7.05); O.knee.add(dro);
-    var droScr = BX(2.4, 1.1, .08, MAT.green); droScr.position.set(4.4, -2.6, 8.18); O.knee.add(droScr);
-    for (var di = 0; di < 3; di++) {
-      var dbtn = BX(.35, .22, .1, MAT.dark); dbtn.position.set(3.55 + di * .55, -3.5, 8.20);
+    /* 数显表：薄白盒 + 深灰屏框 + 数码管屏（X/Y/Z 实时读数）。
+       旧版屏是一块纯绿色板，近看像贴了张绿纸。 */
+    var droBack = BX(2.90, 2.50, .36, MAT.castGray); droBack.position.set(4.4, -2.85, 7.55); O.knee.add(droBack);
+    var dro = draftBox(2.75, 2.35, .90, 1.0, MAT.white); dro.position.set(4.4, -2.85, 7.94); O.knee.add(dro);
+    var droBezel = BX(2.45, 1.55, .10, MAT.dark); droBezel.position.set(4.4, -2.58, 8.40); O.knee.add(droBezel);
+    O.droScr = droScreen(); O.droScr.position.set(4.4, -2.58, 8.46); O.knee.add(O.droScr);
+    for (var di = 0; di < 4; di++) {
+      var dbtn = BX(.30, .18, .08, MAT.dark); dbtn.position.set(3.62 + di * .46, -3.48, 8.42);
       O.knee.add(dbtn);
     }
 
@@ -10891,16 +10990,27 @@ return K;
     O.table.add(hd);
     K.tag(hdBody, 'X 轴端部驱动箱', '电机经齿轮带丝杠；手动 / 机动进给切换手柄在侧面');
 
-    /* 工件 + 压板装夹 */
+    /* 工件 + 压板装夹：一块压板压工件前边、一块压后边，对角布置。
+       鼻端落在工件顶面、尾端坐在 T 槽里的垫块上，双头螺柱 + 螺母压紧。
+       旧版两块压板整体落在 x=6.5 / z=±2.6（工件外 150 mm 的台面上），
+       既压不住工件，又像被人随手扔在台面上的两根黑条。 */
     O.wp = buildWorkpiece(); O.wp.position.set(0, WP_Y, 1.8); O.table.add(O.wp);
-    [-2.6, 2.6].forEach(function (zz) {
-      var b2 = CY(.09, .5, MAT.steelD, 10); b2.position.set(6.5, WP_Y - .05, 1.8 + zz); O.table.add(b2);
-      var nut = CY(.16, .17, MAT.darkM, 6); nut.position.set(6.5, WP_Y + .22, 1.8 + zz); O.table.add(nut);
-      var clamp = BX(2.8, .18, .6, MAT.darkM); clamp.position.set(5.4, WP_Y + .12, 1.8 + zz);
-      O.table.add(clamp);
-      var shim = BX(.55, .32, .55, MAT.steelD); shim.position.set(6.6, WP_Y - .1, 1.8 + zz);
-      O.table.add(shim);
-    });
+    function clampKit(cx, dir) {                 /* dir=+1 压前边，-1 压后边 */
+      var studZ = 1.8 - dir * 1.5;               /* T 槽：z = 0.30 / 3.30 */
+      var noseZ = 1.8 - dir * .38;               /* 鼻端压在工件顶面 */
+      var step = BX(.66, .77, .60, MAT.steelD);
+      step.position.set(cx, 3.45 + .385, studZ); O.table.add(step);
+      var bar = BX(.44, .16, 1.32, MAT.darkM);
+      bar.position.set(cx, WP_Y + .08, (studZ + noseZ) / 2); O.table.add(bar);
+      var stud = CY(.085, 1.12, MAT.steelD, 10);
+      stud.position.set(cx, 3.45 + .60, studZ); O.table.add(stud);
+      var washer = CY(.21, .05, MAT.steelD, 12);
+      washer.position.set(cx, WP_Y + .17, studZ); O.table.add(washer);
+      var nut = CY(.15, .15, MAT.darkM, 6);
+      nut.position.set(cx, WP_Y + .235, studZ); O.table.add(nut);
+    }
+    clampKit(-.62, 1);
+    clampKit(.62, -1);
 
     /* ═══ 炮塔铣头：按参考图收窄到 8.6，内部传动同步重排 ═══════════════
        宽度 11.2 → 8.6，齿轮模数 .085 → .062（模块作用域已改），
@@ -10954,10 +11064,13 @@ return K;
     O.shUp = makeSheave(MOTOR_Z); O.tilt.add(O.shUp.g);
     O.shDn = makeSheave(SPZ); O.tilt.add(O.shDn.g);
     layoutSheave(O.shUp, .56); layoutSheave(O.shDn, .50);
-    /* 带在深蓝内腔里必须读得出来：比橡胶稍亮的灰 + 双面 + 一点金属粉 */
-    O.belt = new T.Mesh(beltGeometry(beltLoop(.50, .56, BELT_D), .19, .30),
-      new T.MeshStandardMaterial({ color: 0x4c545c, metalness: .18, roughness: .55,
-        envMapIntensity: .55, side: T.DoubleSide }));
+    /* V 带：橡胶质感（深灰、哑光、双面）。旧版是 .19×.30 的浅灰片，
+       在剖视里既不像带、又贴钢色，读不出"这是传动带"。
+       截面放大到 .27×.44（≈13×22 mm，接近 SPZ 带），近景才立得住。 */
+    O.belt = new T.Mesh(beltGeometry(beltLoop(.50, .56, BELT_D), .27, .44),
+      new T.MeshStandardMaterial({ color: 0x272b30, metalness: .06, roughness: .78,
+        envMapIntensity: .42, side: T.DoubleSide }));
+    O.belt.userData.noShadow = false;
     O.belt.position.set(0, SHEAVE_Y, 0);
     O.tilt.add(O.belt);
     K.tag(O.belt, 'V 带（无级变速）', '工作半径随两锥盘开合变化；带轮比一改，主轴转速连续可调');
@@ -11093,17 +11206,17 @@ return K;
     dialFace.userData.ctl = { act: 'rpm' }; O.ctlMeshes.push(dialFace);
     O.dialPtr.traverse(function (m3) { if (m3.isMesh) { m3.userData.ctl = { act: 'rpm' }; O.ctlMeshes.push(m3); } });
     K.tag(dialP, '点击：变速盘（11 档）', '真机用这个盘旋转螺杆改双锥盘开合；这里点一下换一档，带轮半径会跟着变');
-    /* 左侧黄底警示贴 + 几条斜纹（实物照机头左侧那块菱形警告牌） */
-    var warn = BX(1.15, 1.0, .06, MAT.orange); warn.position.set(-4.55, -3.65, 4.60); hc.add(warn);
-    var warnIn = BX(.62, .62, .07, MAT.red); warnIn.position.set(-4.55, -3.65, 4.64);
-    warnIn.rotation.z = PI / 4; hc.add(warnIn);
+    /* 机头左侧的警示标：一块画出来的菱形警告牌（黄底黑边 + 闪电 + 文字），
+       不再是"橙盒子 + 红方块 + 红菱形"三个说不清的色块 */
+    var wp = warnPlate();
+    wp.rotation.y = -PI / 2;                 /* 法线朝 -x：贴在机头左侧壁上 */
+    wp.position.set(-4.315, -3.45, 2.55); hc.add(wp);
     for (var hz = 0; hz < 5; hz++) {
       var stripe = BX(.16, 1.1, .05, MAT.goldL);
       stripe.position.set(-3.4 + hz * .2, -7.75, 4.60); stripe.rotation.z = .5; hc.add(stripe);
     }
-    /* 黄色电气盒挂在前盖上（跟左壁一起走）：左壁一拆，挂在侧壁上的盒子会悬空 */
-    var ebox = draftBox(1.4, 1.35, 1.5, 1.1, MAT.orange); ebox.position.set(-4.9, -2.4, 4.35); hc.add(ebox);
-    var eSw = BX(.65, .65, .12, MAT.red); eSw.position.set(-4.9, -2.3, 4.95); hc.add(eSw);
+    /* 原来这里挂了「橙盒 + 红方块」，没有标识也没有接线，读不出是什么；
+       改为只保留一块警示牌，电气接线交给机头后侧的线缆。 */
     O.headCover = hc; O.tilt.add(hc);
 
     [-1, 1].forEach(function (sg) {
@@ -11116,6 +11229,24 @@ return K;
     var qw = wheelMount(4.9, -7.6, -1.62, 1.75, 3, MAT.darkM, { act: 'wheel', key: 'quillMm', step: 3 },
       '套筒进给手柄（可点击）', '点上半圈套筒下探 3 mm（吃刀）、下半圈退回；齿条推动套筒，发条负责回程');
     O.tilt.add(qw.mount); O.quillHandle = qw.wheel;
+
+    /* ── 冷却液喷嘴：L 形支架 + 一段万向竹节管 + 喷嘴口，从机头底下伸到刀尖旁。
+       面板「冷却」键本来只点亮一颗灯、屏幕上变个字，机床上没有任何反应 ——
+       补上这一段，开泵就有实打实从喷嘴浇到刀尖的液束。 ── */
+    var cnzB = BX(.46, .24, .46, MAT.darkM); cnzB.position.set(1.98, -9.46, 1.62); O.tilt.add(cnzB);
+    var cnzS = CY(.12, .34, MAT.steelD, 10); cnzS.position.set(1.98, -9.74, 1.62); O.tilt.add(cnzS);
+    var cnzHose = cable([1.98, -9.92, 1.62], [1.22, -13.05, 1.14], .10, MAT.hose);
+    O.tilt.add(cnzHose);
+    var cnzNoz = CY(.095, .58, MAT.steelD, 10);
+    cnzNoz.position.set(1.17, -13.38, 1.10); cnzNoz.rotation.z = -.16; O.tilt.add(cnzNoz);
+    K.tag(cnzNoz, '冷却液喷嘴（面板「冷却」开泵）', '竹节管可任意掰向刀尖；开泵后切削液直接浇在刀刃上，带走切屑与热量');
+    O.jetFrom = new T.Vector3(1.11, -13.66, 1.07);
+    O.jet = new T.Mesh(new T.CylinderGeometry(.034, .072, 1, 8, 1, true),
+      new T.MeshBasicMaterial({ color: 0xd8f1ff, transparent: true, opacity: .46,
+        depthWrite: false, side: T.DoubleSide }));
+    O.jet.userData.noShadow = true;
+    O.jet.visible = false;
+    O.tilt.add(O.jet);
 
     /* 两根斜向上的黑色球头手柄（套筒进给 / 主轴刹车），实物照机头右侧很显眼 */
     [[4.95, -5.55, 2.25, 3.4, -.60], [4.35, -2.70, 2.05, 2.5, -.95]].forEach(function (p) {
@@ -11194,8 +11325,7 @@ return K;
       hit.userData.ctl = ctl; hit.userData.visual = cap; hit.userData.baseZ = PF + .10;
       O.ctlMeshes.push(hit);
       if (label) {
-        var lp = new T.Mesh(new T.PlaneGeometry(.88, .22),
-          new T.MeshBasicMaterial({ map: txtTex(label), transparent: true }));
+        var lp = decal(.88, .22, txtTex(label));
         lp.position.set(x, y + r + .2, PF + .02); g.add(lp);
       }
       return { cap: cap, mat: mat };
@@ -11214,17 +11344,18 @@ return K;
     mkKey(PX - 1.1, YA, .21, '正转', { act: 'cw' }, 'green');
     mkKey(PX + 0.0, YA, .21, '反转', { act: 'ccw' }, 'dark');
     mkKey(PX + 1.7, YA, .32, '急停', { act: 'estop' }, 'stop');
-    /* 急停的黄底警示圈（真机都有，一眼认得出是急停） */
-    var esRing = new T.Mesh(new T.TorusGeometry(.38, .05, 8, 26), MAT.btnAmber);
-    esRing.rotation.x = PI / 2; esRing.position.set(PX + 1.7, YA, PF + .09); g.add(esRing);
+    /* 急停的黄底警示板：真机是红帽坐在一块黄底板上，一眼认得出是急停。
+       旧版是一圈 TorusGeometry 且 rotation.x=PI/2 —— 环立起来，成了横贯
+       红帽的一条金色细线（近景尤其明显）。 */
+    var esPlate = RM(.98, .98, .09, .06, MAT.btnAmber);
+    esPlate.position.set(PX + 1.7, YA, PF + .035); g.add(esPlate);
     /* 第二排：转速升降 / 冷却 / 走刀 */
     var YB = PY - 3.10;
     mkKey(PX - 2.2, YB, .21, '转速+', { act: 'rpm+' }, 'dark');
     mkKey(PX - 1.1, YB, .21, '转速−', { act: 'rpm-' }, 'dark');
     mkKey(PX + 0.0, YB, .21, '冷却', { act: 'cool' }, 'dark');
     mkKey(PX + 1.1, YB, .21, '走刀', { act: 'auto' }, 'green');
-    var brand = new T.Mesh(new T.PlaneGeometry(2.3, .26),
-      new T.MeshBasicMaterial({ map: txtTex('MX-4LW CNC', '#37424c'), transparent: true }));
+    var brand = decal(2.3, .26, txtTex('MX-4LW CNC', '#37424c'));
     brand.position.set(PX - 1.35, PY - 3.58, PF + .02); g.add(brand);
 
     /* 转速旋钮 */
@@ -11237,8 +11368,7 @@ return K;
     knobHit.userData.ctl = { act: 'rpm' }; knobHit.userData.visual = O.rpmKnob;
     O.ctlMeshes.push(knobHit);
     g.add(O.rpmKnob);
-    var lp2 = new T.Mesh(new T.PlaneGeometry(.92, .22),
-      new T.MeshBasicMaterial({ map: txtTex('转速档'), transparent: true }));
+    var lp2 = decal(.92, .22, txtTex('转速档'));
     lp2.position.set(PX + 2.4, YB + .56, PF + .02); g.add(lp2);
     K.tag(O.rpmKnob, '点击：转速档（11 档）', '11 档 75~4550 r/min；旋钮转、屏幕 S 与双锥盘开合同步变');
 
@@ -11249,8 +11379,9 @@ return K;
     g.add(cable([8.6, 13.2, 3.7], [8.8, 9.0, 1.2], 1.0));
     g.add(cable([10.6, 13.2, 3.7], [9.2, 4.0, .6], 2.0));
     g.add(cable([-4.2, 8.0, -3.0], [-3.2, 1.0, 3.0], 1.4));
-    g.add(cable([4.6, 2.0, 4.8], [6.6, -6.0, 6.4], 1.3));
-    g.add(cable([-6.0, -3.0, 5.0], [-4.0, -9.0, 6.0], 1.6));
+    g.add(cable([4.6, 2.0, 4.8], [6.4, -9.5, 6.8], 1.2));
+    /* 油管末端要落到接屑盘面上，悬在半空会被读成"断了的线" */
+    g.add(cable([-6.0, -3.0, 5.0], [-4.2, -9.55, 6.2], 1.5));
 
     shadow(g);
     return g;
@@ -11824,17 +11955,17 @@ return K;
       var r1 = SHEAVE_SUM * ratio / (1 + ratio);
       r1 = Math.max(.34, Math.min(.72, r1));
       var r2 = SHEAVE_SUM - r1;
-      if (O._r1 === undefined || Math.abs(r1 - O._r1) > .005) {
-        O._r1 = r1;
-        layoutSheave(O.shUp, r1);
-        layoutSheave(O.shDn, r2);
+      /* 剖视：每个带轮的两片锥盘沿轴向张开（张 .62，远大于带宽 .27），
+         V 槽与夹在槽里的带一起露出来；带轮本身不再整体移动，
+         带不会离开轮子，读起来仍是"在传动"而不是"掉带了"。 */
+      var openV = s.coverT * .36;
+      if (O._r1 === undefined || Math.abs(r1 - O._r1) > .005 || Math.abs(openV - O._openV) > .004) {
+        O._r1 = r1; O._openV = openV;
+        layoutSheave(O.shUp, r1, openV);
+        layoutSheave(O.shDn, r2, openV);
         O.belt.geometry.dispose();
-        O.belt.geometry = beltGeometry(beltLoop(r2, r1, BELT_D), .17, .27);
+        O.belt.geometry = beltGeometry(beltLoop(r2, r1, BELT_D), .27, .44);
       }
-      /* 剖视时把带轮组拉开成「爆炸图」：上带轮抬起、V 带浮到两盘之间。
-         带本来夹在 V 槽里，不拉开就完全看不见（这也是无级变速的演示点）。 */
-      if (O.shUp) O.shUp.g.position.y = SHEAVE_Y + s.coverT * 1.9;
-      if (O.belt) O.belt.position.y = SHEAVE_Y + s.coverT * .52;
 
       if (s.rpmAct > 1) {
         var kSpin = dt * TAU * .05;
@@ -11878,6 +12009,23 @@ return K;
       O.quill.position.y = qy;
       O.spindle.position.y = qy;
       O.qPin.spin.rotation.z = -s.quillMm / 3 * TAU;
+      /* 冷却液束：喷嘴口 → 刀尖（都在机头局部坐标里，随套筒下探自动改长度）。
+         断电 / 急停 / 停泵时立即消失，跟面板上的灯保持一致。 */
+      if (O.jet) {
+        var jetOn = s.coolant && s.power && !s.estop;
+        O.jet.visible = jetOn;
+        if (jetOn) {
+          var tp = O._tp || (O._tp = new T.Vector3());
+          var jv = O._jv || (O._jv = new T.Vector3());
+          tp.set(0, qy - 5.9, SPZ);              /* 刀尖 = 套筒位置 -5.9（刀柄 + 刀长） */
+          jv.copy(tp).sub(O.jetFrom);
+          var jl = Math.max(.2, jv.length());
+          O.jet.position.copy(O.jetFrom).addScaledVector(jv, .5);
+          O.jet.quaternion.setFromUnitVectors(YUP, jv.normalize());
+          O.jet.scale.set(1, jl, 1);
+          O.jet.material.opacity = .40 + Math.sin(s.t * 23) * .07;
+        }
+      }
 
       var ta = s.turretDeg * PI / 180, ia = s.tiltDeg * PI / 180;
       O.turret.rotation.y += (ta - O.turret.rotation.y) * Math.min(1, dt * 6);
@@ -11925,7 +12073,7 @@ return K;
       if (O.finalPass && O.finalPass.material.uniforms.uTime) {
         O.finalPass.material.uniforms.uTime.value = Math.floor(s.t * 24) * 1.37;
       }
-      if (s.scrAcc > .1) { s.scrAcc = 0; drawScreen(s); }
+      if (s.scrAcc > .1) { s.scrAcc = 0; drawScreen(s); drawDro(s); }
       updateChips(dt);
     }
   };

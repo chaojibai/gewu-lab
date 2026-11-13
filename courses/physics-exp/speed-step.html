@@ -5745,5 +5745,23 @@ return K;
 </script>
 <!-- 本课件使用 three.js（MIT License, © 2010-2023 three.js authors）渲染；
      场景构建、材质参数、仿真模型与文案均为本项目独立实现。 -->
+<!-- 格物实验室·下载按钮(release_polish) -->
+<style>
+.gw-dl{position:fixed;right:16px;bottom:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 16px;border-radius:11px;border:1px solid rgba(255,255,255,.22);
+  background:linear-gradient(135deg,#0e7490,#1b9c9c);color:#fff;
+  font:600 13.5px/1 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  box-shadow:0 10px 30px rgba(8,40,55,.35);text-decoration:none;cursor:pointer;transition:.18s}
+.gw-dl:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(8,40,55,.45)}
+.gw-dl svg{width:16px;height:16px}
+@media(max-width:560px){.gw-dl{right:12px;bottom:12px;padding:9px 13px;font-size:12.5px}}
+</style>
+<a class="gw-dl" id="gwDl" download>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+  <span>下载本课件</span>
+</a>
+<script>
+(function(){var a=document.getElementById('gwDl');if(a){a.href=location.href;a.download=(document.title||'courseware')+'.html';}})();
+</script>
 </body>
 </html>

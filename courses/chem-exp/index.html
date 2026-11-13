@@ -788,5 +788,46 @@ if(location.hash.startsWith('#book-')){
 }
 render();
 </script>
+<!-- 格物实验室·目录页增强(release_polish) -->
+<style>
+.gw-lic{position:fixed;left:16px;bottom:16px;z-index:99998;display:inline-flex;align-items:center;gap:7px;
+  padding:7px 13px;border-radius:999px;background:rgba(13,28,42,.82);color:#ffd9a8;
+  font:600 12.5px/1 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  border:1px solid rgba(255,180,120,.4);backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,.3);
+  letter-spacing:.3px;pointer-events:none}
+.gw-lic svg{width:14px;height:14px}
+.gw-card-dl{display:inline-flex;align-items:center;gap:5px;margin-left:auto;
+  padding:6px 12px;border-radius:9px;font-size:12px;font-weight:600;text-decoration:none;
+  color:#0e7490;background:rgba(14,116,144,.1);border:1px solid rgba(14,116,144,.25);transition:.16s;white-space:nowrap}
+.gw-card-dl:hover{background:rgba(14,116,144,.18)}
+.gw-card-dl svg{width:13px;height:13px}
+@media(max-width:560px){.gw-lic{font-size:11px;padding:6px 10px}}
+</style>
+<div class="gw-lic">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6 18.4 18.4"/></svg>
+  仅限教学使用 · 禁止商用
+</div>
+<script>
+(function(){
+  var dlSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>';
+  function addDl(){
+    document.querySelectorAll('.card').forEach(function(card){
+      if(card.querySelector('.gw-card-dl')) return;
+      var href=null, main=card.querySelector('.card-main');
+      if(main&&main.getAttribute('href')) href=main.getAttribute('href');
+      var slug=card.getAttribute('data-slug');
+      if(!href&&slug) href='./'+slug+'-step.html';
+      if(!href) return;
+      var a=document.createElement('a');
+      a.className='gw-card-dl'; a.href=href; a.setAttribute('download','');
+      a.innerHTML=dlSvg+'<span>下载</span>';
+      var foot=card.querySelector('.card-foot')||card.querySelector('.links');
+      if(foot) foot.appendChild(a);
+    });
+  }
+  if(typeof window.render==='function'){ var _r=window.render; window.render=function(){ _r.apply(window,arguments); addDl(); }; }
+  addDl();
+})();
+</script>
 </body>
 </html>

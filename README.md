@@ -1,146 +1,95 @@
-# threejs-lab-courseware
+# 格物实验室 · 鲁教版化学 / 物理 3D 交互课件
 
-**把课本里看不见的过程，做成能动手、算得对、断网能放的 3D 实验课件。**
+把课本里看不见的过程，做成**能动手、算得对、断网能放**的 3D 实验课件。
 
-一个面向 WorkBuddy / AI Agent 的技能包（Skill）：给出「单文件、可离线、模型驱动」的
-three.js 学科仿真课件制作方法 —— 从玻璃/液体的渲染配方，到缓动系统、多机位验证流程、
-以及一份「凑近就露馅」的细节修改规则库。
+本仓库收录鲁教版初中 **化学 15 门 + 物理 21 门** 单文件 three.js 交互课件。
+每一门都可旋转观察、分步演示、读数由模型实时计算；**所有页面均为单文件 HTML，
+不依赖网络、不依赖服务器，双击即可打开**。
 
-> 适用于：初中/高中化学、物理实验课件；虚拟仿真实验；需要发给老师离线使用（单 HTML 文件）的场景。
-
----
-
-## 它解决什么问题
-
-做 3D 实验课件，真正的难点不是"建个模型"，而是这四件事：
-
-| 难点 | 本项目的答案 |
-|---|---|
-| 玻璃在浅背景下看不见（像塑料） | 玻璃**靠轮廓线被读出来**，不是靠 transmission；配口沿/母线/竖向高光/贴壁薄壳 |
-| 液体像一块色块（或"冰淇淋球"） | 片元着色器按**世界高度**做吸收渐变 + 贴壁暗化 + 平液面 + 小而紧的高光 |
-| 数字是编的（"仿假"） | 所有读数**由公式算**：pH 精确解、pV=nRT、m=ρV、质量分数、误差评分 |
-| 变化太生硬（一下子多/少） | dt 钳制 + 状态跳变自动补间 + 整件器材淡入淡出 + 火焰强度缓动 |
+> ⚠️ **许可：CC BY-NC 4.0 —— 仅限教学 / 科研使用，禁止商用、禁止售卖。**
+> 详见 [LICENSE](LICENSE) 与 [NOTICE.md](NOTICE.md)。
 
 ---
 
-## 快速开始
+## 包含内容
 
-> ⚠️ **本仓库自带引擎**（`assets/kit3d.js` + `assets/vendor/three.min.js`）。
-> 只拷 `SKILL.md` 是不够的 —— `K.glassCyl` / `K.fadeShow` / `K.boot` 都在引擎里。
-> 装完请跑 `node scripts/selftest.js` 自检。详见 **[INSTALL.md](INSTALL.md)**。
+| 学科 | 册次 | 门数 | 入口 |
+|---|---|---|---|
+| 化学 | 八年级全一册 / 九年级上册 / 九年级下册 | **15** | `courses/chem-exp/index.html` |
+| 物理 | 八上 / 八下 / 九上 / 九下（五四制） | **21** | `courses/physics-exp/index.html` |
 
-### 1. 安装（WorkBuddy / 兼容 Agent）
+每门课件都是独立的 `*-step.html` 文件（例：`candle-step.html`、`ammeter-step.html`），
+内联了 three.js 与全部材质/场景，**零外部依赖**。
 
-把整个目录复制到用户级技能目录（**目录名必须是 `threejs-lab-courseware`**）：
+---
+
+## 怎么用
+
+### ① 在线浏览 / 下载（部署到 GitHub Pages 后）
+打开仓库的 Pages 地址，即可在浏览器里浏览目录、点击任意课件进入 3D 交互。
+每个课件右下角都有 **「下载本课件」** 按钮；目录页每张卡片也有 **「下载」** 按钮，
+一键把单文件 HTML 存到本地。
+
+### ② 直接下载单个课件离线用
+每个 `*-step.html` 本身就是完整课件。**下载后断网双击即可打开**，
+适合发给学生、拷到机房、或嵌进自己的课件里。
+
+### ③ 本地整体打开
+直接双击 `courses/chem-exp/index.html` 或 `courses/physics-exp/index.html`
+即可在本机浏览全部课件（目录页的图片封面需要同源目录下的 `thumbs/` 文件夹）。
+
+---
+
+## 许可与署名
+
+- **本作品以 CC BY-NC 4.0 授权**：可教学、可分享、可署名后改编，**不可商用、不可售卖**。
+- 版权：© 2026 格物实验室（GEWU LAB）。
+- 第三方参考（仅参考思路，未复制代码/文案/素材）：
+  - **three.js（r147）** — MIT License，© 2010–2023 three.js authors，内联于各课件（其 MIT 声明保留在文件内）。
+  - **tongjiang-lab（铜匠实验室）** — CC BY-NC 4.0，本项目的单文件 3D 课件形式受其**其中一个课件**的形态启发。
+  - 详见 [NOTICE.md](NOTICE.md)。
+
+---
+
+## 部署到 GitHub Pages（免费、静态托管）
+
+课件是纯静态 HTML，天然适合 GitHub Pages：
 
 ```bash
-# macOS / Linux
-cp -r threejs-lab-courseware ~/.workbuddy/skills/
+# 1) 在 GitHub 新建仓库，名为 gewu-lab（或 格物实验室）
+# 2) 关联并推送（本仓库已含全部文件，.gitignore 已排除依赖与产物）
+git remote add github https://github.com/<你的用户名>/gewu-lab.git
+git add -A
+git commit -m "feat: 鲁教版化学/物理 3D 课件开源（CC BY-NC 4.0，仅教学）"
+git push -u github master        # 若默认分支为 main，请相应改名
 
-# Windows (Git Bash)
-cp -r threejs-lab-courseware "$HOME/.workbuddy/skills/"
+# 3) 仓库 Settings → Pages → Source 选 master（或 main）分支 /(root) → Save
+# 4) 等待约 1 分钟，访问 https://<你的用户名>.github.io/gewu-lab/
 ```
 
-之后在对话里说「用 threejs-lab-courseware 技能做一节 XX 实验」即可触发。
-
-### 2. 依赖
-
-```bash
-node scripts/selftest.js    # 先自检（会告诉你缺什么）
-npm i playwright            # 可选：只有跑截图/检查脚本才需要
-```
-
-- **three**：仓库已内置 r147 UMD（`assets/vendor/three.min.js`）。**不要**用 `npm i three`——
-  新版移除了 UMD，内联会失败
-- **playwright**：多机位截图、报错扫描、像素取样
-
-### 3. 验证脚本
-
-```bash
-node scripts/views.js courses/x.html v1 0     # 六机位截图：front/hero/side/top/back/detail
-node scripts/check.js courses/x.html          # pageerror / console.error 扫描
-node scripts/pick.js courses/x.html "600,500" # 直读帧缓冲像素（别靠肉眼猜颜色）
-python scripts/inline_build.py --template page.html --three three.min.js \
-    --engine kit3d.js --lesson lessons/x.js --out courses/x.html
-```
+> 国内访问 GitHub Pages 偶尔较慢，可改用 **Gitee Pages**（你已有 Gitee 账号）作国内镜像，步骤类似。
 
 ---
 
 ## 目录结构
 
 ```
-threejs-lab-courseware/
-├── SKILL.md                          # 主文件：技术骨架、玻璃/液体做法、过渡、验证、踩坑表
-├── references/
-│   ├── render-recipes.md             # 材质参数表、环境贴图、液体着色器全文、交互代码
-│   ├── detail-rules.md               # 细节修改规则：小件三件套、刻度液面、断肢检查、反例库
-│   └── github-references.md          # 可参考的开源实现（含铜匠实验室，可选）与检索命令
-├── INSTALL.md                        # 接入指南（三种装法 + 六个"效果不好"的真实原因）
-├── assets/                           # ★ 引擎资产（缺了它什么都跑不起来）
-│   ├── kit3d.js                      # 引擎：玻璃/液体/器材/缓动/交互
-│   ├── page.html                     # 单文件模板（7 个占位符）
-│   ├── style.css                     # 面板样式
-│   ├── sim.js                        # 模型层（pH/气体/溶解等）
-│   └── vendor/three.min.js           # three r147 UMD（594KB，可内联）
-│       └── postfx/*.js              # 可选：SSAO/Bloom 后期（11 个 r147 UMD 插件）
-├── scripts/
-│   ├── selftest.js                   # 安装自检（资产/API/占位符/端到端构建）
-│   ├── views.js                      # 六机位截图
-│   ├── check.js                      # 报错扫描
-│   ├── pick.js                       # 帧缓冲像素取样
-│   └── inline_build.py               # 多文件内联成单文件 HTML
-├── vocational-3d/                    # ★ 子技能：职业教育设备 3D 课件线（独立技能）
-│   ├── SKILL.md                      # 入口：五步流水线 / 三条不可妥协 / 性能预算
-│   ├── references/                   # 01 管线 · 02 实训车间场景 · 03 整机剖切建模法
-│   │                                 # 04 机构运动 · 05 交互与教学 · 06 验证 · 07 本线坑表
-│   ├── templates/                    # lesson-scaffold.js（可改名开工）+ checklist.md（交付自检）
-│   └── examples/                     # 样板索引：直列四缸汽油机
-├── robot-glb-sim/                    # 子技能：真实 CAD .glb 可操纵机械臂仿真
-└── examples/
-    └── peizhi-step.js                # 完整示例：《配制一定溶质质量分数的溶液》
+courses/
+  chem-exp/        # 化学 15 门课件 + 目录页 index.html + 封面 thumbs/
+  physics-exp/     # 物理 21 门课件 + 目录页 index.html + style.css
+LICENSE           # CC BY-NC 4.0 + 仅教学声明
+NOTICE.md         # 第三方参考与署名
+README.md         # 本文件
+scripts/
+  release_polish.py  # 发布后处理：注入「下载本课件」按钮与许可徽标（可重复运行）
 ```
 
-> **两条线已分流**：科普/素养类走本 README 与 `SKILL.md`；
-> 实训/设备/拆装/精模类走 `vocational-3d/SKILL.md`（场景、剖切、验收标准完全不同，不要混用）。
+> 课件由 `build/` 下的构建脚本从源码生成；如需修改课件内容，参见 `INSTALL.md` 与 `SKILL.md`。
+> 想重新生成发布用的下载按钮与许可徽标，运行 `python scripts/release_polish.py` 即可（幂等）。
 
 ---
 
-## 核心结论速查（都是实测踩出来的）
+## 免责声明
 
-1. **玻璃**：`opacity .3 + clearcoat .7 + envMapIntensity 1.8`，**不要**用 `transmission≈1`（会奶白）；
-   口沿 `LineLoop` + 母线 `LineSegments` 必须画，`linewidth` 无效就用透明度补偿。
-2. **液体**：`transmission` 在浅背景下会让有色液体**消失**（背后没东西可折射）→ 用片元着色器做高度渐变。
-3. **不能靠叠几何做纵深**：有几何边界就一定有分层接缝。
-4. **读数**：补间时存 `state[k+'T']` 目标值，面板读目标值，画面读缓动值（否则显示 92.4 mL 这种中间数）。
-5. **液位**：`scale.y` 对"按世界高度算渐变"的着色器无效 → `setLiquidLevel(mesh, h, y0)` 同步 `uBot/uTop`。
-6. **细节**：小件三件套（形体 + 内容 + 连接），缺一条就"只剩一个彩色块"；
-   器材**不允许断成两截**（被亮背景或 BackSide 光晕吞掉也算断）。
-
-更多见 `SKILL.md` 与 `references/detail-rules.md`。
-
----
-
-## 内容预览
-
-- **8 节 SKILL.md**：技术骨架 / 玻璃 / 液体 / 过渡 / 严谨性 / 验证流程 / 9 条踩坑 / 交付形态
-- **detail-rules 九节**：小件三件套、放置朝向、刻度液面、特写自检清单、修法代码、
-  反例→正解表、断肢检查（含采样判定法）、节奏建议、真实案例
-- **示例课件**：8 步（计算→称量→量取→溶解→装瓶→评分→迁移→总结），
-  读数全部由 `m = m溶液×w`、`V = (m溶液−m溶质)/ρ` 计算，6 g + 94 mL → 6.00%
-
----
-
-## 许可
-
-本仓库内容（文档、脚本、示例代码）采用 **MIT License**，见 `LICENSE`。
-
-**第三方参考声明**见 `NOTICE.md`：文中提到的开源项目（如铜匠实验室 `tongjiang-lab`）
-各有自己的许可，本项目仅参考其公开的做法与参数，**未复制其代码、文案或素材**。
-其中 `tongjiang-lab` 为 **CC BY-NC 4.0（禁止商用）**，请勿将其内容用于商业产品。
-
----
-
-## 致谢
-
-- [three.js](https://threejs.org)（MIT）
-- [Playwright](https://playwright.dev)（Apache-2.0）
+课件依相关教材与课程标准编写，力求准确，但**不保证与任一特定版本教材逐字对应**，
+亦不对因使用本课件产生的任何后果承担责任。内容仅供教学参考。

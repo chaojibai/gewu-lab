@@ -57,3 +57,15 @@ build/make_physics_drafts.py
 # 课件源码与导出器备份
 build/lessons3d/*.bak-*
 build/make_cncmill_glb.html.bak-beforeReal
+
+# === 开源发布补充（保持仓库精简、不泄露本地信息） ===
+*.glb                      # 外部 GLB 模型资产（职教/无人机等本地资产，课件运行时不需要；鲁教版课件为自包含 HTML）
+*.log
+.DS_Store
+Thumbs.db
+.env
+*.pem
+id_rsa*
+*.swp
+codespaces-secret/*
+.settings/
