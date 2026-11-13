@@ -4295,55 +4295,95 @@ return K;
   }
 
   /* ── 弹簧测力计 ─────────────────────────────────────────
-     圆筒外壳（半透明窗）+ 内部弹簧 + 可动指针/拉杆 + 底部挂钩。 */
+     布局（本地 y，单位 cm）：壳体圆柱 y∈[0,H]（中心 H/2，与上盖、下盖严丝合缝）；
+     刻度背板在**管内**（z=.58，半透明外壳透得出），canvas 与面板同比例（不再把
+     数字拉扁）；弹簧**顶端锚定在上盖内侧**、底端连动子，setForce 时按胡克定律
+     伸长（弹簧长度 = 顶端锚点 − 动子顶面），拉杆/挂钩随之平移，三者永不脱位。
+     刻度方向：0 N 在上、max 在下——拉力越大动子越往下，与指针下移一致。 */
   function springScale(opts) {
     opts = opts || {};
     var MK = M(), g = new T.Group();
-    var r = 1.3, H = 7.2, top = H;
+    var r = 1.3, H = 6.0;
     var shell = new T.Mesh(new T.CylinderGeometry(r, r, H, 24, 1, true),
       new T.MeshPhysicalMaterial({ color: 0xdfe7ee, roughness: .25, metalness: 0,
         transparent: true, opacity: .22, side: T.DoubleSide, clearcoat: .6, envMapIntensity: 1 }));
-    g.add(shell);
+    shell.position.y = H / 2; g.add(shell);                 // ← 原位未抬，壳体与上盖分开 3.6
     var capTop = new T.Mesh(new T.CylinderGeometry(r, r, .4, 24), MK.metal);
-    capTop.position.y = top; g.add(capTop);
+    capTop.position.y = H; g.add(capTop);
+    var capBot = new T.Mesh(new T.CylinderGeometry(r, r * .96, .38, 24), MK.metal);
+    g.add(capBot);                                           // 下盖（拉杆由此穿出）
     var ringTop = new T.Mesh(new T.TorusGeometry(.5, .18, 8, 16), MK.metal);
-    ringTop.rotation.x = Math.PI / 2; ringTop.position.y = top + .5; g.add(ringTop);
-    /* 内部弹簧：顶端锚定，底端连动子（随拉力下移） */
+    ringTop.rotation.x = Math.PI / 2; ringTop.position.y = H + .5; g.add(ringTop);
+    /* 内部弹簧：几何原点搬到顶端（本地 y∈[−L,0]），靠 scale.y 拉伸到实际长度 */
+    var TOP = H - .3, SPR_L = 4.0;
     var springMat = new T.MeshStandardMaterial({ color: 0x9aa6b0, roughness: .35, metalness: .85 });
-    var spring = helix(0.7, 4.6, 9, 0.12, springMat, 'y');
-    spring.position.y = 1.4; g.add(spring);
+    var spring = helix(0.7, SPR_L, 6, 0.12, springMat, 'y');
+    spring.geometry.translate(0, -SPR_L, 0);
+    spring.position.y = TOP; g.add(spring);
     var collar = new T.Mesh(new T.CylinderGeometry(r * .7, r * .7, .4, 18), MK.metalD);
-    collar.position.y = 1.6; g.add(collar);
+    collar.position.y = 3.8; g.add(collar);                  // 动子（弹簧下端 + 拉杆上端）
     var rod = new T.Mesh(new T.CylinderGeometry(.18, .18, 3.4, 10), MK.metal);
-    rod.position.y = -0.4; g.add(rod);
+    rod.position.y = 1.9; g.add(rod);
     var hook = new T.Mesh(new T.TorusGeometry(.5, .16, 8, 16), MK.metal);
-    hook.position.y = -2.2; g.add(hook);
-    /* 前面板刻度（CanvasTexture）+ 指针 */
+    hook.position.y = .1; g.add(hook);
+    /* 管内刻度背板：canvas 320×640 与面板 2.4×3.4 不同比例会拉扁数字，
+       故 canvas 只用中间刻度区，比例差由绘制区间吸收；深底亮字保证可读。 */
+    var NMAX = opts.max || 5;
+    var P0 = 3.8, PMAX = 1.4;                                // 0 N / max N 时指针的本地 y
+    var PANEL_H = 3.4, PANEL_Y = 2.7;                        // 面板覆盖 y∈[1.0, 4.4]
     var tex = (function () {
-      var c = document.createElement('canvas'); c.width = 256; c.height = 256;
-      var x = c.getContext('2d'); x.fillStyle = '#0e2437'; x.fillRect(0, 0, 256, 256);
-      x.strokeStyle = '#cfe6f2'; x.lineWidth = 3; x.fillStyle = '#cfe6f2';
-      x.textAlign = 'center'; x.font = 'bold 22px Consolas,monospace';
-      var N = opts.max || 5;
-      x.fillText('N', 128, 30);
-      for (var v = 0; v <= N; v++) {
-        var yy = 230 - (v / N) * 180;
-        x.beginPath(); x.moveTo(70, yy); x.lineTo(v % 1 === 0 ? 120 : 95, yy); x.stroke();
-        if (v % 1 === 0) x.fillText(String(v), 40, yy + 1);
+      var c = document.createElement('canvas'); c.width = 320; c.height = 640;
+      var x = c.getContext('2d');
+      x.fillStyle = '#eef4f7'; x.fillRect(0, 0, 320, 640);   // 乳白刻度板：玻璃管内的金属/搪瓷牌
+      /* 世界 y → canvas y：world 4.4→0，1.0→640 */
+      function cy(v) { return (4.4 - (P0 + (v / NMAX) * (PMAX - P0))) / PANEL_H * 640; }
+      /* 刻度线沿 canvas 宽度（局部 x）排，数字字形单独转 −90° 以抵消整支横放 */
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      for (var v = 0; v <= NMAX + 1e-6; v += NMAX / 10) {     // 每 1/10 量程一小格
+        var yy = cy(v), major = Math.abs(v - Math.round(v)) < 1e-6;
+        x.fillStyle = major ? '#1c3346' : 'rgba(42,72,94,.55)';
+        x.fillRect(major ? 156 : 172, yy - (major ? 2.8 : 1.5), major ? 132 : 82, major ? 5.6 : 3);
+        if (major) {
+          x.save(); x.translate(118, yy); x.rotate(-Math.PI / 2);
+          x.fillStyle = '#1c3346'; x.font = 'bold 46px Consolas,monospace';
+          x.fillText(String(Math.round(v)), 0, 0); x.restore();
+        }
       }
-      var t = new T.CanvasTexture(c); return t;
+      x.save(); x.translate(44, 56); x.rotate(-Math.PI / 2);
+      x.fillStyle = 'rgba(28,51,70,.72)'; x.font = 'bold 38px Consolas,monospace'; x.fillText('N', 0, 0); x.restore();
+      var t = new T.CanvasTexture(c); t.anisotropy = 8;
+      t.minFilter = T.LinearFilter; t.magFilter = T.LinearFilter; t.generateMipmaps = false;
+      return t;
     })();
-    var panel = new T.Mesh(new T.PlaneGeometry(2.4, 5.2), new T.MeshBasicMaterial({ map: tex }));
-    panel.position.set(0, H / 2, r + 0.01); g.add(panel);
+    var panel = new T.Mesh(new T.PlaneGeometry(1.8, PANEL_H), new T.MeshBasicMaterial({ map: tex }));
+    panel.position.set(0, PANEL_Y, -.9); g.add(panel);      // ← 管内后半，弹簧在它前面
+    /* 玻璃管轮廓：两条母线 + 上下口沿圆环，读作「刻度在玻璃管里」 */
+    var tubeLine = new T.LineBasicMaterial({ color: 0x5c7f99, transparent: true, opacity: .62 });
+    [-1, 1].forEach(function (sx) {
+      g.add(new T.Line(new T.BufferGeometry().setFromPoints([
+        new T.Vector3(sx * r, 0, .18), new T.Vector3(sx * r, H, .18)]), tubeLine));
+    });
+    [0, H].forEach(function (yy) {
+      var pts = [], k;
+      for (k = 0; k <= 40; k++) {
+        var a = k / 40 * Math.PI * 2;
+        pts.push(new T.Vector3(Math.cos(a) * r, yy, Math.sin(a) * r));
+      }
+      g.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), tubeLine));
+    });
     var pointer = new T.Mesh(new T.BoxGeometry(1.8, .12, .05),
       new T.MeshBasicMaterial({ color: 0xff5a3c }));
-    pointer.position.set(0, 1.6, r + .05); g.add(pointer);
+    pointer.position.set(0, P0, .66); g.add(pointer);
     g.userData.setForce = function (N) {
-      var Nmax = opts.max || 5, f = Math.max(0, Math.min(1, N / Nmax));
-      var y = 1.6 - f * 2.2;
-      collar.position.y = y; rod.position.y = y - 2.0; hook.position.y = y - 3.8;
+      var f = Math.max(0, Math.min(1, N / NMAX));
+      var y = P0 + f * (PMAX - P0);                          // 动子 / 指针位置
+      collar.position.y = y;
+      rod.position.y = y - 1.9;                              // 拉杆上端接动子底面
+      hook.position.y = y - 4.1;                             // 挂钩穿出下盖，在体外
       pointer.position.y = y;
-      pointer.rotation.z = 0;
+      spring.scale.y = Math.max(.12, (TOP - (y + .2)) / SPR_L); // 拉力越大弹簧越长（胡克）
+      g.userData.hookY = hook.position.y;                    // 供课件取拉环世界坐标
+      g.userData.bodyR = r;
     };
     g.userData.setForce(0);
     return g;
@@ -4708,20 +4748,41 @@ return K;
     return g;
   }
 
-  /* ══ 小车 ══════════════════════════════════════════════ */
+  /* ══ 小车 ══════════════════════════════════════════════
+     车轮分两层：外层 mount 定位（rotation.x=π/2 翻转轴向），
+     内层 spin 只绕本地 y 自转（= 世界 z 轴），课件写 userData.setRoll(θ) 驱动。
+     轮面加浅色轮毂 + 4 根辐条 + 胎面标记点，滚动方向一眼可辨。 */
   function cart(opts) {
     opts = opts || {};
     var MK = M(), g = new T.Group();
     var L = opts.len || 6, W = opts.w || 3.2, H = 2.2;
     var body = new T.Mesh(new T.BoxGeometry(L, H, W), cmat(0xd9b34a, .5, .2));
     body.position.y = 1.5; g.add(body);
-    var wr = 1.1;
+    var wr = 1.1, HUBR = .42;
+    var hubMat = cmat(0xd8dee4, .35, .7, { envMapIntensity: .8 });
+    var spokeMat = cmat(0x3a424a, .6, .3);
+    g.userData.wheels = [];
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (p) {
-      var w = new T.Mesh(new T.CylinderGeometry(wr, wr, 1.0, 18), MK.rubber);
-      w.rotation.x = Math.PI / 2;
-      w.position.set(p[0] * (L / 2 - 1), wr, p[1] * (W / 2));
-      g.add(w);
+      var mount = new T.Group();
+      mount.rotation.x = Math.PI / 2;                 // 本地 y → 世界 z（轮轴沿 z）
+      mount.position.set(p[0] * (L / 2 - 1), wr, p[1] * (W / 2));
+      var spin = new T.Group(); mount.add(spin);      // 自转层
+      var tire = new T.Mesh(new T.CylinderGeometry(wr, wr, 1.0, 18), MK.rubber);
+      spin.add(tire);
+      var hub = new T.Mesh(new T.CylinderGeometry(HUBR, HUBR, 1.04, 14), hubMat);
+      spin.add(hub);
+      for (var si = 0; si < 4; si++) {                // 辐条：转起来才看得见
+        var sp = new T.Mesh(new T.BoxGeometry(wr * 1.5, .16, 1.06), spokeMat);
+        sp.rotation.y = si * Math.PI / 4;
+        spin.add(sp);
+      }
+      var mark = new T.Mesh(new T.BoxGeometry(.18, 1.06, .3), spokeMat);
+      mark.position.set(wr - .06, 0, 0); spin.add(mark);  // 胎面参考点
+      g.add(mount); g.userData.wheels.push(spin);
     });
+    g.userData.setRoll = function (theta) {
+      for (var i = 0; i < g.userData.wheels.length; i++) g.userData.wheels[i].rotation.y = theta;
+    };
     return g;
   }
 
@@ -5617,15 +5678,9 @@ return K;
       var ruler = makeScale(LEN);
       ruler.position.set(0, .36, W / 2 - 1.4); board.add(ruler); O.ruler = ruler;
 
-      /* ── 小车：四轮随位移真实滚动（深色橡胶轮 + 前撞板）── */
+      /* ── 小车：四轮随位移真实滚动（深色橡胶轮 + 轮毂辐条 + 前撞板）── */
       var cart = P.cart({ len: 6, w: 4.4 });
-      board.add(cart); O.cart = cart; O.wheels = [];
-      cart.traverse(function (o) {
-        if (o.isMesh && o.geometry.type === 'CylinderGeometry' && o.geometry.parameters.radiusTop > 1) {
-          o.material = new T.MeshStandardMaterial({ color: 0x2c3238, roughness: .85, metalness: .05 });
-          O.wheels.push(o);
-        }
-      });
+      board.add(cart); O.cart = cart;
       var bumper = new T.Mesh(new T.BoxGeometry(.25, 1.2, 4.2), P.MAT.steel);
       bumper.position.set(-3.05, 1.5, 0); cart.add(bumper);
       /* 加厚车板 + 顶面深色挡光片：正面不再只读成「两个轮子加一小块」 */
@@ -5677,7 +5732,10 @@ return K;
       var t = s._t;
       var x = P.model.inclineX(t, A);                  // 已走位移（cm）
       O.cart.position.x = X0 - x;
-      O.wheels.forEach(function (w) { w.rotation.z = -x / 1.1; });  // 纯滚动：θ = s / r
+      /* 纯滚动：小车向 −x 下滑，轮子绕世界 +z 应正向转 θ = s/r（r=1.1）。
+         车在 mount.rotation.x=π/2 的局部系里自转，局部 +y 即世界 +z；
+         取负号会让轮面逆着前进方向倒转（用户放大截图可见）。 */
+      if (O.cart.userData.setRoll) O.cart.userData.setRoll(x / 1.1);
       O.sw.userData.setTime(t);
 
       /* 备料动线：第 1 步从台面备料位装到斜面低端，之后保持装好 */

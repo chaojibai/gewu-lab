@@ -4295,55 +4295,95 @@ return K;
   }
 
   /* ── 弹簧测力计 ─────────────────────────────────────────
-     圆筒外壳（半透明窗）+ 内部弹簧 + 可动指针/拉杆 + 底部挂钩。 */
+     布局（本地 y，单位 cm）：壳体圆柱 y∈[0,H]（中心 H/2，与上盖、下盖严丝合缝）；
+     刻度背板在**管内**（z=.58，半透明外壳透得出），canvas 与面板同比例（不再把
+     数字拉扁）；弹簧**顶端锚定在上盖内侧**、底端连动子，setForce 时按胡克定律
+     伸长（弹簧长度 = 顶端锚点 − 动子顶面），拉杆/挂钩随之平移，三者永不脱位。
+     刻度方向：0 N 在上、max 在下——拉力越大动子越往下，与指针下移一致。 */
   function springScale(opts) {
     opts = opts || {};
     var MK = M(), g = new T.Group();
-    var r = 1.3, H = 7.2, top = H;
+    var r = 1.3, H = 6.0;
     var shell = new T.Mesh(new T.CylinderGeometry(r, r, H, 24, 1, true),
       new T.MeshPhysicalMaterial({ color: 0xdfe7ee, roughness: .25, metalness: 0,
         transparent: true, opacity: .22, side: T.DoubleSide, clearcoat: .6, envMapIntensity: 1 }));
-    g.add(shell);
+    shell.position.y = H / 2; g.add(shell);                 // ← 原位未抬，壳体与上盖分开 3.6
     var capTop = new T.Mesh(new T.CylinderGeometry(r, r, .4, 24), MK.metal);
-    capTop.position.y = top; g.add(capTop);
+    capTop.position.y = H; g.add(capTop);
+    var capBot = new T.Mesh(new T.CylinderGeometry(r, r * .96, .38, 24), MK.metal);
+    g.add(capBot);                                           // 下盖（拉杆由此穿出）
     var ringTop = new T.Mesh(new T.TorusGeometry(.5, .18, 8, 16), MK.metal);
-    ringTop.rotation.x = Math.PI / 2; ringTop.position.y = top + .5; g.add(ringTop);
-    /* 内部弹簧：顶端锚定，底端连动子（随拉力下移） */
+    ringTop.rotation.x = Math.PI / 2; ringTop.position.y = H + .5; g.add(ringTop);
+    /* 内部弹簧：几何原点搬到顶端（本地 y∈[−L,0]），靠 scale.y 拉伸到实际长度 */
+    var TOP = H - .3, SPR_L = 4.0;
     var springMat = new T.MeshStandardMaterial({ color: 0x9aa6b0, roughness: .35, metalness: .85 });
-    var spring = helix(0.7, 4.6, 9, 0.12, springMat, 'y');
-    spring.position.y = 1.4; g.add(spring);
+    var spring = helix(0.7, SPR_L, 6, 0.12, springMat, 'y');
+    spring.geometry.translate(0, -SPR_L, 0);
+    spring.position.y = TOP; g.add(spring);
     var collar = new T.Mesh(new T.CylinderGeometry(r * .7, r * .7, .4, 18), MK.metalD);
-    collar.position.y = 1.6; g.add(collar);
+    collar.position.y = 3.8; g.add(collar);                  // 动子（弹簧下端 + 拉杆上端）
     var rod = new T.Mesh(new T.CylinderGeometry(.18, .18, 3.4, 10), MK.metal);
-    rod.position.y = -0.4; g.add(rod);
+    rod.position.y = 1.9; g.add(rod);
     var hook = new T.Mesh(new T.TorusGeometry(.5, .16, 8, 16), MK.metal);
-    hook.position.y = -2.2; g.add(hook);
-    /* 前面板刻度（CanvasTexture）+ 指针 */
+    hook.position.y = .1; g.add(hook);
+    /* 管内刻度背板：canvas 320×640 与面板 2.4×3.4 不同比例会拉扁数字，
+       故 canvas 只用中间刻度区，比例差由绘制区间吸收；深底亮字保证可读。 */
+    var NMAX = opts.max || 5;
+    var P0 = 3.8, PMAX = 1.4;                                // 0 N / max N 时指针的本地 y
+    var PANEL_H = 3.4, PANEL_Y = 2.7;                        // 面板覆盖 y∈[1.0, 4.4]
     var tex = (function () {
-      var c = document.createElement('canvas'); c.width = 256; c.height = 256;
-      var x = c.getContext('2d'); x.fillStyle = '#0e2437'; x.fillRect(0, 0, 256, 256);
-      x.strokeStyle = '#cfe6f2'; x.lineWidth = 3; x.fillStyle = '#cfe6f2';
-      x.textAlign = 'center'; x.font = 'bold 22px Consolas,monospace';
-      var N = opts.max || 5;
-      x.fillText('N', 128, 30);
-      for (var v = 0; v <= N; v++) {
-        var yy = 230 - (v / N) * 180;
-        x.beginPath(); x.moveTo(70, yy); x.lineTo(v % 1 === 0 ? 120 : 95, yy); x.stroke();
-        if (v % 1 === 0) x.fillText(String(v), 40, yy + 1);
+      var c = document.createElement('canvas'); c.width = 320; c.height = 640;
+      var x = c.getContext('2d');
+      x.fillStyle = '#eef4f7'; x.fillRect(0, 0, 320, 640);   // 乳白刻度板：玻璃管内的金属/搪瓷牌
+      /* 世界 y → canvas y：world 4.4→0，1.0→640 */
+      function cy(v) { return (4.4 - (P0 + (v / NMAX) * (PMAX - P0))) / PANEL_H * 640; }
+      /* 刻度线沿 canvas 宽度（局部 x）排，数字字形单独转 −90° 以抵消整支横放 */
+      x.textAlign = 'center'; x.textBaseline = 'middle';
+      for (var v = 0; v <= NMAX + 1e-6; v += NMAX / 10) {     // 每 1/10 量程一小格
+        var yy = cy(v), major = Math.abs(v - Math.round(v)) < 1e-6;
+        x.fillStyle = major ? '#1c3346' : 'rgba(42,72,94,.55)';
+        x.fillRect(major ? 156 : 172, yy - (major ? 2.8 : 1.5), major ? 132 : 82, major ? 5.6 : 3);
+        if (major) {
+          x.save(); x.translate(118, yy); x.rotate(-Math.PI / 2);
+          x.fillStyle = '#1c3346'; x.font = 'bold 46px Consolas,monospace';
+          x.fillText(String(Math.round(v)), 0, 0); x.restore();
+        }
       }
-      var t = new T.CanvasTexture(c); return t;
+      x.save(); x.translate(44, 56); x.rotate(-Math.PI / 2);
+      x.fillStyle = 'rgba(28,51,70,.72)'; x.font = 'bold 38px Consolas,monospace'; x.fillText('N', 0, 0); x.restore();
+      var t = new T.CanvasTexture(c); t.anisotropy = 8;
+      t.minFilter = T.LinearFilter; t.magFilter = T.LinearFilter; t.generateMipmaps = false;
+      return t;
     })();
-    var panel = new T.Mesh(new T.PlaneGeometry(2.4, 5.2), new T.MeshBasicMaterial({ map: tex }));
-    panel.position.set(0, H / 2, r + 0.01); g.add(panel);
+    var panel = new T.Mesh(new T.PlaneGeometry(1.8, PANEL_H), new T.MeshBasicMaterial({ map: tex }));
+    panel.position.set(0, PANEL_Y, -.9); g.add(panel);      // ← 管内后半，弹簧在它前面
+    /* 玻璃管轮廓：两条母线 + 上下口沿圆环，读作「刻度在玻璃管里」 */
+    var tubeLine = new T.LineBasicMaterial({ color: 0x5c7f99, transparent: true, opacity: .62 });
+    [-1, 1].forEach(function (sx) {
+      g.add(new T.Line(new T.BufferGeometry().setFromPoints([
+        new T.Vector3(sx * r, 0, .18), new T.Vector3(sx * r, H, .18)]), tubeLine));
+    });
+    [0, H].forEach(function (yy) {
+      var pts = [], k;
+      for (k = 0; k <= 40; k++) {
+        var a = k / 40 * Math.PI * 2;
+        pts.push(new T.Vector3(Math.cos(a) * r, yy, Math.sin(a) * r));
+      }
+      g.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts), tubeLine));
+    });
     var pointer = new T.Mesh(new T.BoxGeometry(1.8, .12, .05),
       new T.MeshBasicMaterial({ color: 0xff5a3c }));
-    pointer.position.set(0, 1.6, r + .05); g.add(pointer);
+    pointer.position.set(0, P0, .66); g.add(pointer);
     g.userData.setForce = function (N) {
-      var Nmax = opts.max || 5, f = Math.max(0, Math.min(1, N / Nmax));
-      var y = 1.6 - f * 2.2;
-      collar.position.y = y; rod.position.y = y - 2.0; hook.position.y = y - 3.8;
+      var f = Math.max(0, Math.min(1, N / NMAX));
+      var y = P0 + f * (PMAX - P0);                          // 动子 / 指针位置
+      collar.position.y = y;
+      rod.position.y = y - 1.9;                              // 拉杆上端接动子底面
+      hook.position.y = y - 4.1;                             // 挂钩穿出下盖，在体外
       pointer.position.y = y;
-      pointer.rotation.z = 0;
+      spring.scale.y = Math.max(.12, (TOP - (y + .2)) / SPR_L); // 拉力越大弹簧越长（胡克）
+      g.userData.hookY = hook.position.y;                    // 供课件取拉环世界坐标
+      g.userData.bodyR = r;
     };
     g.userData.setForce(0);
     return g;
@@ -4708,20 +4748,41 @@ return K;
     return g;
   }
 
-  /* ══ 小车 ══════════════════════════════════════════════ */
+  /* ══ 小车 ══════════════════════════════════════════════
+     车轮分两层：外层 mount 定位（rotation.x=π/2 翻转轴向），
+     内层 spin 只绕本地 y 自转（= 世界 z 轴），课件写 userData.setRoll(θ) 驱动。
+     轮面加浅色轮毂 + 4 根辐条 + 胎面标记点，滚动方向一眼可辨。 */
   function cart(opts) {
     opts = opts || {};
     var MK = M(), g = new T.Group();
     var L = opts.len || 6, W = opts.w || 3.2, H = 2.2;
     var body = new T.Mesh(new T.BoxGeometry(L, H, W), cmat(0xd9b34a, .5, .2));
     body.position.y = 1.5; g.add(body);
-    var wr = 1.1;
+    var wr = 1.1, HUBR = .42;
+    var hubMat = cmat(0xd8dee4, .35, .7, { envMapIntensity: .8 });
+    var spokeMat = cmat(0x3a424a, .6, .3);
+    g.userData.wheels = [];
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (p) {
-      var w = new T.Mesh(new T.CylinderGeometry(wr, wr, 1.0, 18), MK.rubber);
-      w.rotation.x = Math.PI / 2;
-      w.position.set(p[0] * (L / 2 - 1), wr, p[1] * (W / 2));
-      g.add(w);
+      var mount = new T.Group();
+      mount.rotation.x = Math.PI / 2;                 // 本地 y → 世界 z（轮轴沿 z）
+      mount.position.set(p[0] * (L / 2 - 1), wr, p[1] * (W / 2));
+      var spin = new T.Group(); mount.add(spin);      // 自转层
+      var tire = new T.Mesh(new T.CylinderGeometry(wr, wr, 1.0, 18), MK.rubber);
+      spin.add(tire);
+      var hub = new T.Mesh(new T.CylinderGeometry(HUBR, HUBR, 1.04, 14), hubMat);
+      spin.add(hub);
+      for (var si = 0; si < 4; si++) {                // 辐条：转起来才看得见
+        var sp = new T.Mesh(new T.BoxGeometry(wr * 1.5, .16, 1.06), spokeMat);
+        sp.rotation.y = si * Math.PI / 4;
+        spin.add(sp);
+      }
+      var mark = new T.Mesh(new T.BoxGeometry(.18, 1.06, .3), spokeMat);
+      mark.position.set(wr - .06, 0, 0); spin.add(mark);  // 胎面参考点
+      g.add(mount); g.userData.wheels.push(spin);
     });
+    g.userData.setRoll = function (theta) {
+      for (var i = 0; i < g.userData.wheels.length; i++) g.userData.wheels[i].rotation.y = theta;
+    };
     return g;
   }
 
@@ -5607,24 +5668,32 @@ return K;
     draw(c.getContext('2d'), w, h);
     var t = new T.CanvasTexture(c); t.anisotropy = 4; return t;
   }
-  /* 量筒刻度贴图：0~50 mL，每 1 mL 一格、每 10 mL 标数（0 在底、50 在顶）。
-     浅色刻度带托底 + 加深加粗主刻度/数字，浅背景下不再被玻璃洗淡；
-     读数仍由 V = K_V·h 模型算出，贴图只负责刻度外观。 */
+  /* 量筒刻度贴图：0~50 mL，每 5 mL 一格、每 10 mL 标数（0 在底、50 在顶）。
+     贴图横向 u 对应弧面 -0.42~+0.42 rad，内容必须居中（u≈0.5）才正对 +z 机位；
+     真实量筒是「玻璃上印的淡刻度」：极淡托底 + 细线 + 小号浅色数字，
+     不是白底黑粗线的栅栏。读数仍由 V = K_V·h 模型算，贴图只管外观。 */
   function cylScaleTex() {
-    return tex(200, 880, function (x, w, h) {
+    return tex(160, 880, function (x, w, h) {
       x.clearRect(0, 0, w, h);
-      x.fillStyle = 'rgba(240,246,250,.78)';
-      x.fillRect(w - 108, 0, 108, h);
-      x.fillStyle = '#0b1a26'; x.textAlign = 'right'; x.textBaseline = 'middle';
-      for (var v = 0; v <= V_MAX; v++) {
+      var cx = w * .50;                                  // 刻度列中心（正对 +z 机位）
+      x.fillStyle = 'rgba(238,246,250,.30)';             // 淡托底：读作玻璃上印的刻度，不是白贴纸
+      x.fillRect(cx - 40, 0, 64, h);
+      x.textAlign = 'right'; x.textBaseline = 'middle';
+      for (var v = 0; v <= V_MAX; v += 5) {              // 每 5 mL 一格即可读
         var yy = h - 12 - (v / V_MAX) * (h - 24);
-        var major = v % 10 === 0, mid = v % 5 === 0;
-        x.fillRect(w - (major ? 58 : (mid ? 40 : 22)), yy - (major ? 2.5 : 1.5),
-                   major ? 56 : (mid ? 38 : 20), major ? 5 : 3);
-        if (major) { x.font = 'bold 34px Consolas,monospace'; x.fillText(String(v), w - 62, yy); }
+        var major = (v % 10 === 0);
+        x.fillStyle = major ? 'rgba(30,50,66,.72)' : 'rgba(30,50,66,.42)';
+        x.fillRect(cx - (major ? 32 : 21), yy - (major ? 1.7 : 1),
+                   major ? 32 : 20, major ? 3.4 : 2);
+        if (major) {
+          x.fillStyle = 'rgba(24,42,56,.82)';
+          x.font = 'bold 27px Consolas,monospace';
+          x.fillText(String(v), cx - 36, yy);
+        }
       }
-      x.font = 'bold 22px "Microsoft YaHei",sans-serif'; x.textAlign = 'left';
-      x.fillText('mL', 6, 14);
+      x.fillStyle = 'rgba(24,42,56,.68)';
+      x.font = 'bold 19px "Microsoft YaHei",sans-serif'; x.textAlign = 'center';
+      x.fillText('mL', cx - 20, 16);
     });
   }
   /* 凹液面：中心低、边缘高的薄面（读数取最低处） */
@@ -5924,10 +5993,13 @@ return K;
       var collar = new T.Mesh(new T.CylinderGeometry(2.02 * CYL_S, 2.1 * CYL_S, .42 * CYL_S, 48),
         new T.MeshStandardMaterial({ color: 0xdfe6ec, roughness: .42, metalness: .08 }));
       collar.position.y = .21 * CYL_S; cyl.add(collar);
-      var ticks = new T.Mesh(new T.PlaneGeometry(2.6, H_SCALE),
+      /* 刻度做**贴合玻璃外壁的弧面**（theta 0 = +z 正面），不再是一块 2.6 宽的
+         平板悬在筒外 0.23 —— 真实量筒刻度就印在玻璃壁上。弧长 : 高 ≈ 1:5.9，
+         与 canvas 160×880 同比例，数字不被纵向拉伸。 */
+      var RK = 1.5 * CYL_S - .02, AH = .42;
+      var ticks = new T.Mesh(new T.CylinderGeometry(RK, RK, H_SCALE, 18, 1, true, -AH, 2 * AH),
         new T.MeshBasicMaterial({ map: cylScaleTex(), transparent: true, side: T.DoubleSide }));
-      ticks.position.set(0, Y0 + H_SCALE / 2, 1.62 * CYL_S + .05);   // 移到玻璃壁外侧
-      cyl.add(ticks); O.ticks = ticks;
+      ticks.position.y = Y0 + H_SCALE / 2; cyl.add(ticks); O.ticks = ticks;
 
       var waterGeo = new T.CylinderGeometry(R_IN, R_IN * .98, 1, 32);
       waterGeo.translate(0, .5, 0);                    // 原点在底面，scale.y 即液面高
