@@ -69,3 +69,15 @@ id_rsa*
 *.swp
 codespaces-secret/*
 .settings/
+
+# === 开源仓库仅保留化学/物理 3D 课件 HTML 资源，其余工程文件一律不入库 ===
+# （skill、机械臂/无人机仿真、build 源码、scripts、references、labs 等均属本地工程，勿上传）
+assets/
+build/
+examples/
+labs/
+references/
+robot-glb-sim/
+scripts/
+vocational-3d/
+courses/*.html
