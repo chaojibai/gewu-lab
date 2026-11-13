@@ -2,7 +2,8 @@
 
 把课本里看不见的过程，做成**能动手、算得对、断网能放**的 3D 实验课件。
 
-本仓库收录鲁教版初中 **化学 15 门 + 物理 21 门** 单文件 three.js 交互课件。
+本仓库收录鲁教版初中 **化学 15 门 + 物理 21 门**（共 **36 门**）单文件 three.js 交互课件。
+仓库根目录的 **`index.html`** 是化学与物理合一的总入口，化学、物理不再分两个页面。
 每一门都可旋转观察、分步演示、读数由模型实时计算；**所有页面均为单文件 HTML，
 不依赖网络、不依赖服务器，双击即可打开**。
 
@@ -13,10 +14,11 @@
 
 ## 包含内容
 
-| 学科 | 册次 | 门数 | 入口 |
-|---|---|---|---|
-| 化学 | 八年级全一册 / 九年级上册 / 九年级下册 | **15** | `courses/chem-exp/index.html` |
-| 物理 | 八上 / 八下 / 九上 / 九下（五四制） | **21** | `courses/physics-exp/index.html` |
+| 入口 | 内容 | 门数 |
+|---|---|---|
+| **`index.html`（根目录，推荐）** | 化学 + 物理 合一的总入口 | **36** |
+| `courses/chem-exp/index.html` | 仅化学（三册） | 15 |
+| `courses/physics-exp/index.html` | 仅物理（五四制四册） | 21 |
 
 每门课件都是独立的 `*-step.html` 文件（例：`candle-step.html`、`ammeter-step.html`），
 内联了 three.js 与全部材质/场景，**零外部依赖**。
@@ -35,8 +37,8 @@
 适合发给学生、拷到机房、或嵌进自己的课件里。
 
 ### ③ 本地整体打开
-直接双击 `courses/chem-exp/index.html` 或 `courses/physics-exp/index.html`
-即可在本机浏览全部课件（目录页的图片封面需要同源目录下的 `thumbs/` 文件夹）。
+直接双击仓库根目录的 **`index.html`** 即可在本机浏览化学 + 物理全部 36 门课件
+（化学封面图依赖同目录 `courses/chem-exp/thumbs/`，随仓库一并下载即可）。
 
 ---
 
@@ -74,6 +76,7 @@ git push -u github master        # 若默认分支为 main，请相应改名
 ## 目录结构
 
 ```
+index.html          # 统一总入口（化学 + 物理 36 门合一）
 courses/
   chem-exp/        # 化学 15 门课件 + 目录页 index.html + 封面 thumbs/
   physics-exp/     # 物理 21 门课件 + 目录页 index.html + style.css
@@ -81,11 +84,12 @@ LICENSE           # CC BY-NC 4.0 + 仅教学声明
 NOTICE.md         # 第三方参考与署名
 README.md         # 本文件
 scripts/
-  release_polish.py  # 发布后处理：注入「下载本课件」按钮与许可徽标（可重复运行）
+  build_site_index.py  # 由 chem-exp / physics-exp 两个源目录生成根目录统一 index.html
+  release_polish.py    # 发布后处理：注入「下载本课件」按钮与许可徽标（可重复运行）
 ```
 
 > 课件由 `build/` 下的构建脚本从源码生成；如需修改课件内容，参见 `INSTALL.md` 与 `SKILL.md`。
-> 想重新生成发布用的下载按钮与许可徽标，运行 `python scripts/release_polish.py` 即可（幂等）。
+> 想重新生成统一总入口，运行 `python scripts/build_site_index.py`（再由 `release_polish.py` 注入下载/许可）。两者均可重复运行（幂等）。
 
 ---
 

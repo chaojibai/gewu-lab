@@ -69,6 +69,7 @@ INDEX_SNIPPET = INDEX_MARK + '''
       if(card.querySelector('.gw-card-dl')) return;
       var href=null, main=card.querySelector('.card-main');
       if(main&&main.getAttribute('href')) href=main.getAttribute('href');
+      if(!href){ var ow=card.querySelector('[data-open]'); if(ow) href=ow.getAttribute('data-open'); }
       var slug=card.getAttribute('data-slug');
       if(!href&&slug) href='./'+slug+'-step.html';
       if(!href) return;
@@ -109,6 +110,10 @@ def main():
         idx = d / 'index.html'
         if idx.exists() and inject(idx, INDEX_MARK, INDEX_SNIPPET):
             n_index += 1
+    # 统一总入口（仓库根目录 index.html）
+    site = ROOT / 'index.html'
+    if site.exists() and inject(site, INDEX_MARK, INDEX_SNIPPET):
+        n_index += 1
     print('注入完成：课件 %d 个，目录页 %d 个' % (n_course, n_index))
 
 

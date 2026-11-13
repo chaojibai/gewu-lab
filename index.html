@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>鲁教版 · 初中化学 + 物理 · 3D 交互课件总入口 | 格物实验室</title>
+<style>
+/* ── 设计令牌 ───────────────────────────────────────── */
+:root{
+  --bg:#f4f7fa; --bg2:#eaf0f5; --surface:#ffffff; --surface2:#f8fafc;
+  --line:#dfe7ee; --line2:#eef3f7;
+  --ink:#152b3e; --ink2:#42586c; --ink3:#7b8fa1;
+  --brand:#0e7490; --brand-soft:#e3f3f6; --accent:#d98a2b;
+  --shadow:0 1px 2px rgba(20,45,70,.04),0 8px 28px rgba(20,45,70,.07);
+  --shadow-hi:0 18px 44px rgba(16,52,76,.16);
+  --hero:#0e2437; --hero2:#163d55;
+  --radius:16px;
+}
+[data-theme="dark"]{
+  --bg:#0e1822; --bg2:#121e29; --surface:#16232f; --surface2:#1b2a37;
+  --line:#26394a; --line2:#20313f;
+  --ink:#e9f1f7; --ink2:#a9bdcc; --ink3:#7e94a6;
+  --brand:#4cc2d8; --brand-soft:#153540; --accent:#f0ad54;
+  --shadow:0 1px 2px rgba(0,0,0,.2),0 8px 28px rgba(0,0,0,.26);
+  --shadow-hi:0 18px 44px rgba(0,0,0,.45);
+  --hero:#0a1a29; --hero2:#112f43;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;line-height:1.6}
+a{color:inherit;text-decoration:none}
+button,input{font:inherit}
+button{cursor:pointer}
+::selection{background:var(--brand);color:#fff}
+.wrap{width:min(1200px,92vw);margin:0 auto}
+
+/* ── 顶栏 ───────────────────────────────────────── */
+.topbar{position:sticky;top:0;z-index:40;height:64px;
+  background:color-mix(in srgb,var(--surface) 86%,transparent);
+  backdrop-filter:blur(14px) saturate(1.4);border-bottom:1px solid var(--line)}
+.topbar .wrap{height:100%;display:flex;align-items:center;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+.brand .mark{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+  background:linear-gradient(145deg,#0e7490,#1b9c9c);box-shadow:0 5px 14px rgba(14,116,144,.28)}
+.brand .mark svg{width:19px;height:19px}
+.brand small{display:block;font-size:10.5px;font-weight:500;color:var(--ink3);letter-spacing:1.6px;line-height:1}
+.navlinks{display:flex;gap:4px;margin-left:auto}
+.navlinks a{font-size:13.5px;color:var(--ink2);padding:7px 13px;border-radius:9px;transition:.18s}
+.navlinks a:hover{background:var(--brand-soft);color:var(--brand)}
+.toolbtns{display:flex;gap:8px;align-items:center}
+.iconbtn{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink2);transition:.18s}
+.iconbtn:hover{border-color:var(--brand);color:var(--brand);transform:translateY(-1px)}
+.iconbtn svg{width:16px;height:16px}
+.count-pill{font-size:12px;color:var(--ink2);border:1px solid var(--line);
+  background:var(--surface2);padding:6px 12px;border-radius:999px;white-space:nowrap}
+.count-pill b{color:var(--brand);font-size:13px}
+
+/* ── Hero ───────────────────────────────────────── */
+.hero{position:relative;overflow:hidden;color:#eaf4f8;
+  background:radial-gradient(1100px 520px at 78% -10%,#1d5a72 0%,transparent 62%),
+             radial-gradient(700px 460px at 8% 110%,#0d5a62 0%,transparent 60%),
+             linear-gradient(125deg,var(--hero) 0%,var(--hero2) 100%)}
+.hero::before{content:"";position:absolute;inset:0;opacity:.16;
+  background-image:linear-gradient(rgba(255,255,255,.25) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(255,255,255,.25) 1px,transparent 1px);
+  background-size:44px 44px;mask-image:linear-gradient(90deg,transparent,#000 60%,transparent)}
+.hero::after{content:"";position:absolute;right:-90px;top:-140px;width:520px;height:520px;
+  border:1px solid rgba(160,225,235,.18);border-radius:50%;box-shadow:0 0 0 70px rgba(160,225,235,.045),
+  0 0 0 150px rgba(160,225,235,.03)}
+.hero .wrap{position:relative;padding:64px 0 76px;display:grid;grid-template-columns:1.15fr .85fr;gap:56px;align-items:center}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;letter-spacing:2.2px;
+  color:#8fd4dd;border:1px solid rgba(143,212,221,.35);border-radius:999px;padding:6px 14px;
+  background:rgba(143,212,221,.07);margin-bottom:22px}
+.eyebrow i{width:6px;height:6px;border-radius:50%;background:#6fd3c2;box-shadow:0 0 0 4px rgba(111,211,194,.18)}
+.hero h1{margin:0;font-size:clamp(34px,4.4vw,54px);line-height:1.18;letter-spacing:1px;font-weight:750}
+.hero h1 em{font-style:normal;color:#7bd7df}
+.hero .lede{margin:20px 0 0;max-width:560px;font-size:15.5px;line-height:1.9;color:#bfd5df}
+.hero .lede b{color:#eaf4f8;font-weight:600}
+.hero-meta{display:flex;gap:22px;margin-top:30px;flex-wrap:wrap}
+.hero-meta div{display:flex;align-items:center;gap:8px;font-size:13px;color:#a9c7d3}
+.hero-meta svg{width:16px;height:16px;color:#6fd3c2}
+.formula{position:absolute;font-family:Georgia,"Times New Roman",serif;color:rgba(160,220,232,.13);
+  font-size:30px;letter-spacing:2px;pointer-events:none;user-select:none}
+.f1{right:8%;top:20%} .f2{right:30%;top:66%;font-size:22px} .f3{right:16%;bottom:12%;font-size:25px}
+.f4{left:44%;top:9%;font-size:19px}
+
+/* 册次统计 */
+.stats{display:grid;gap:12px;position:relative;z-index:2}
+.stat{display:flex;align-items:center;gap:16px;padding:16px 18px;border-radius:14px;
+  background:rgba(255,255,255,.075);border:1px solid rgba(190,230,240,.16);
+  backdrop-filter:blur(6px);transition:.25s}
+.stat:hover{background:rgba(255,255,255,.12);transform:translateX(4px)}
+.stat .n{font-family:Georgia,serif;font-size:32px;line-height:1;color:#7bd7df;min-width:46px}
+.stat .t{font-size:14.5px;font-weight:600;color:#eaf4f8}
+.stat .s{font-size:12px;color:#9dbecb;margin-top:2px}
+.stat .dot{width:8px;height:8px;border-radius:50%;margin-left:auto;flex:none}
+.hero-flask{position:absolute;right:2%;bottom:-38px;width:190px;opacity:.14;pointer-events:none}
+
+/* ── 工具条 ───────────────────────────────────────── */
+.toolbar{position:sticky;top:64px;z-index:30;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.toolbar .wrap{display:flex;align-items:center;gap:18px;padding:14px 0;flex-wrap:wrap}
+.search{position:relative;flex:1;min-width:240px;max-width:420px}
+.search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:var(--ink3)}
+.search input{width:100%;height:42px;padding:0 66px 0 42px;border-radius:11px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);outline:none;transition:.2s;
+  font-size:14px}
+.search input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.search input::placeholder{color:var(--ink3)}
+.kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--ink3);
+  border:1px solid var(--line);border-radius:6px;padding:2px 7px;background:var(--surface2)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink2);
+  padding:8px 14px;border-radius:999px;font-size:13px;transition:.18s;white-space:nowrap}
+.chip:hover{border-color:var(--brand);color:var(--brand)}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff;box-shadow:0 5px 14px rgba(14,116,144,.25)}
+.result{font-size:12.5px;color:var(--ink3);white-space:nowrap}
+
+/* ── 册次分区 ─────────────────────────────────────── */
+main{padding:8px 0 80px}
+.book{padding-top:52px;scroll-margin-top:132px}
+.book-head{display:flex;align-items:flex-start;gap:20px;padding-bottom:22px;
+  border-bottom:1px solid var(--line);margin-bottom:26px;position:relative}
+.book-head::after{content:"";position:absolute;left:0;bottom:-1px;width:88px;height:3px;
+  border-radius:3px;background:var(--bc)}
+.book-num{font-family:Georgia,serif;font-size:52px;line-height:1;color:var(--bc);opacity:.24;
+  letter-spacing:-2px;flex:none;margin-top:-4px}
+.book-info{flex:1}
+.book-info h2{margin:0;font-size:25px;letter-spacing:.6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sys{font-size:11.5px;font-weight:500;letter-spacing:.4px;color:var(--bc);
+  background:var(--bs);border:1px solid color-mix(in srgb,var(--bc) 25%,transparent);
+  padding:3px 10px;border-radius:999px}
+.book-info p{margin:7px 0 0;color:var(--ink2);font-size:13.5px;max-width:760px}
+.book-count{font-size:12.5px;color:var(--ink3);white-space:nowrap;margin-top:8px}
+.book-count b{color:var(--bc);font-size:16px;font-family:Georgia,serif}
+
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+@media(max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+
+/* ── 课程卡片 ───────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;
+  transition:box-shadow .22s,border-color .22s,transform .22s;
+  cursor:pointer;position:relative;
+  animation:fadeUp .5s ease backwards;animation-delay:var(--d,0ms)}
+/* backwards 只在延迟期生效，动画结束回到普通样式，hover 抬升不会被 animation 覆盖 */
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.card:hover{transform:translateY(-5px);box-shadow:var(--shadow-hi);border-color:color-mix(in srgb,var(--bc) 45%,var(--line))}
+.cover{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,var(--bc),var(--hero2));overflow:hidden}
+.cover img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s ease;
+  background:linear-gradient(135deg,var(--bc),var(--hero2))}
+.card:hover .cover img{transform:scale(1.055)}
+.cover::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(9,28,42,.30) 0%,transparent 34%,transparent 62%,rgba(9,28,42,.34) 100%)}
+.cover-tag{position:absolute;left:12px;top:12px;z-index:2;font-size:11.5px;font-weight:600;
+  color:#fff;background:rgba(9,28,42,.62);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.24);padding:4px 10px;border-radius:999px;letter-spacing:.3px}
+.cover-steps{position:absolute;right:12px;top:12px;z-index:2;font-size:11.5px;color:#fff;
+  background:rgba(9,28,42,.5);backdrop-filter:blur(6px);padding:4px 9px;border-radius:8px}
+.cover-play{position:absolute;inset:0;z-index:2;display:grid;place-items:center;
+  background:rgba(8,28,42,.28);opacity:0;transition:.22s}
+.card:hover .cover-play{opacity:1}
+.cover-play span{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,255,255,.92);color:var(--bc);box-shadow:0 8px 24px rgba(0,0,0,.24)}
+.cover-play svg{width:19px;height:19px;margin-left:2px}
+.card-body{padding:16px 17px 15px;flex:1;display:flex;flex-direction:column}
+.chapter{font-size:11.5px;color:var(--bc);font-weight:600;letter-spacing:.3px}
+.card h3{margin:7px 0 0;font-size:17px;line-height:1.42;letter-spacing:.2px}
+.card .q{margin:9px 0 0;font-size:12.8px;color:var(--ink2);line-height:1.65;flex:1}
+.card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:15px;
+  padding-top:12px;border-top:1px solid var(--line2)}
+.card-foot .go{font-size:12.5px;font-weight:600;color:var(--bc);display:flex;align-items:center;gap:6px}
+.card-foot .go svg{width:13px;height:13px;transition:transform .2s}
+.card:hover .card-foot .go svg{transform:translateX(3px)}
+.newwin{border:none;background:transparent;color:var(--ink3);padding:4px;border-radius:6px;
+  display:grid;place-items:center;transition:.18s}
+.newwin:hover{color:var(--brand);background:var(--brand-soft)}
+.newwin svg{width:15px;height:15px}
+.kind{position:absolute;left:12px;bottom:12px;z-index:2;font-size:10.5px;letter-spacing:.5px;
+  color:#fff;background:rgba(9,28,42,.5);padding:3px 8px;border-radius:6px;opacity:0;transition:.22s}
+.card:hover .kind{opacity:1}
+
+.empty{padding:90px 20px;text-align:center;color:var(--ink3)}
+.empty .big{font-size:42px;margin-bottom:10px;opacity:.5}
+.empty h3{margin:0 0 8px;color:var(--ink2);font-size:18px}
+.empty button{margin-top:18px;border:1px solid var(--line);background:var(--surface);
+  color:var(--ink2);padding:9px 18px;border-radius:10px}
+
+/* ── 页脚 ───────────────────────────────────────── */
+footer{background:linear-gradient(130deg,var(--hero),var(--hero2));color:#afc9d5;padding:46px 0 30px}
+.foot-grid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:40px}
+footer h4{margin:0 0 12px;color:#eaf4f8;font-size:14px;letter-spacing:.6px}
+footer p{margin:0 0 8px;font-size:12.8px;line-height:1.85}
+footer .fbrand{font-size:19px;font-weight:700;color:#eaf4f8;letter-spacing:.5px}
+footer .fbrand span{display:block;font-size:11.5px;font-weight:400;letter-spacing:2px;color:#7fb8c6;margin-top:4px}
+.foot-bot{border-top:1px solid rgba(190,230,240,.14);margin-top:34px;padding-top:18px;
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;font-size:11.5px;color:#7e9dab}
+
+/* ── 沉浸预览 ───────────────────────────────────── */
+.viewer{position:fixed;inset:0;z-index:100;background:rgba(8,20,30,.82);
+  backdrop-filter:blur(8px);display:none;flex-direction:column;padding:18px}
+.viewer.open{display:flex}
+.vbar{height:52px;display:flex;align-items:center;gap:14px;color:#eaf4f8;flex:none}
+.vtitle{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vsub{font-size:11.5px;color:#9dbecb;white-space:nowrap}
+.vactions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.vbtn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);color:#eaf4f8;
+  border-radius:9px;padding:7px 13px;font-size:12.5px;display:flex;align-items:center;gap:6px;transition:.18s}
+.vbtn:hover{background:rgba(255,255,255,.2)}
+.vbtn:disabled{opacity:.35;cursor:default}
+.vbtn svg{width:14px;height:14px}
+.vstage{flex:1;position:relative;border-radius:14px;overflow:hidden;background:#0b1a26;
+  border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 70px rgba(0,0,0,.4)}
+.vstage iframe{width:100%;height:100%;border:0;display:block;background:#0b1a26}
+.vload{position:absolute;inset:0;display:grid;place-items:center;color:#cfe6ee;font-size:13px;
+  background:rgba(11,26,38,.72);pointer-events:none}
+/* 用 display 切换而非 opacity + transition：不受 iframe load 时机/渲染帧节流影响，遮罩不会残留 */
+.vload.hide{display:none}
+
+/* 回顶 */
+.totop{position:fixed;right:22px;bottom:22px;z-index:35;width:40px;height:40px;border-radius:12px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink2);display:grid;place-items:center;
+  box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.25s}
+.totop.show{opacity:1;pointer-events:auto}
+.totop:hover{color:var(--brand);border-color:var(--brand)}
+.totop svg{width:17px;height:17px}
+
+@media(max-width:820px){
+  .hero .wrap{grid-template-columns:1fr;gap:34px;padding:46px 0 54px}
+  .navlinks{display:none}
+  .foot-grid{grid-template-columns:1fr;gap:22px}
+  .toolbar{top:64px}
+  .formula{display:none}
+}
+
+.cover-fallback{position:absolute;inset:0;display:flex;align-items:flex-end;padding:16px 18px;pointer-events:none}
+.cover-fallback .cf-title{color:#fff;font-size:16px;font-weight:700;line-height:1.4;text-shadow:0 2px 10px rgba(0,0,0,.45);max-width:92%}
+.draft-link{font-size:12px;font-weight:600;color:var(--ink3);text-decoration:none;padding:4px 10px;border:1px solid var(--line);border-radius:8px;transition:.16s;white-space:nowrap}
+.draft-link:hover{color:var(--brand);border-color:var(--brand);background:var(--brand-soft)}
+.subj-div{display:flex;align-items:center;gap:12px;margin:46px 0 8px;font-size:21px;font-weight:750;letter-spacing:.5px;color:var(--ink)}
+.subj-div:first-of-type{margin-top:4px}
+.subj-dot{width:12px;height:12px;border-radius:50%;flex:none}
+.subj-div::after{content:"";flex:1;height:1px;background:var(--line)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.5L4.6 19a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.5V3"/><path d="M7.2 15h9.6"/><circle cx="10" cy="18" r=".7" fill="#fff" stroke="none"/><circle cx="14" cy="17" r=".5" fill="#fff" stroke="none"/></svg></span>
+      <span>格物实验室<small>GEWU LAB</small></span>
+    </a>
+    <nav class="navlinks">
+      <a href="#subject-chem">化学</a>
+      <a href="#subject-phys">物理</a>
+      <a href="#about">关于</a>
+    </nav>
+    <div class="toolbtns">
+      <span class="count-pill"><b id="totalNum">36</b> 门课件 · 断网可用</span>
+      <button class="iconbtn" id="themeBtn" title="切换深浅色" aria-label="切换深浅色">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<header class="hero" id="top">
+  <span class="formula f1">H₂O &nbsp; 2 : 1</span>
+  <span class="formula f2">O₂ ↑ &nbsp; CO₂ ↑</span>
+  <span class="formula f3">F = m a</span>
+  <span class="formula f4">U = I R</span>
+  <svg class="hero-flask" viewBox="0 0 200 200" fill="none" stroke="#bfeaf0" stroke-width="2">
+    <circle cx="100" cy="100" r="86"/><circle cx="100" cy="100" r="62"/>
+    <path d="M100 14v172M14 100h172M39 39l122 122M161 39L39 161"/>
+    <circle cx="100" cy="14" r="6" fill="#bfeaf0"/><circle cx="186" cy="100" r="6" fill="#bfeaf0"/>
+    <circle cx="100" cy="186" r="6" fill="#bfeaf0"/><circle cx="14" cy="100" r="6" fill="#bfeaf0"/>
+  </svg>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow"><i></i>鲁教版 · 初中化学 + 物理 · 3D 交互课件</div>
+      <h1>把课本里的实验，<br>搬进<em>可动手的实验室</em></h1>
+      <p class="lede">化学 15 门、物理 21 门 —— 共 <b>36 门</b>单文件 three.js 课件，按学科与教材册次编排。每一门都能旋转观察、分步演示、断网直接打开；读数由模型计算，操作都有对应的物体与运动。</p>
+      <div class="hero-meta">
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg>化学 15 门 · 三册全覆盖</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14M2 19h20M8 8h8M8 12h5"/></svg>物理 21 门 · 学生必做实验</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a10 10 0 1 0 10 10M12 6v6l4 2"/></svg>单文件 · 离线可用</div>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+</header>
+
+<section class="toolbar">
+  <div class="wrap">
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="搜索课题、章节或探究问题…" autocomplete="off">
+      <span class="kbd">Ctrl K</span>
+    </div>
+    <div class="chips" id="chips">
+      <button class="chip on" data-f="all">全部</button>
+      <button class="chip" data-f="chem">化学</button>
+      <button class="chip" data-f="phys">物理</button>
+      <button class="chip" data-f="must">必做实验</button>
+      <button class="chip" data-f="unit">单元探究</button>
+      <button class="chip" data-f="measure">测量类</button>
+      <button class="chip" data-f="inquiry">探究类</button>
+    </div>
+    <span class="result" id="result"></span>
+  </div>
+</section>
+
+<main class="wrap" id="books"></main>
+
+<footer id="about">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="fbrand">格物实验室<span>GEWU LAB · 3D INTERACTIVE COURSEWARE</span></div>
+        <p style="margin-top:14px">以真实器材、真实尺度与真实读数搭建的初中化学、物理交互课件。所有页面均为单文件 HTML，不依赖网络、不依赖服务器，双击即可打开。</p>
+      </div>
+      <div>
+        <h4>化学 · 15 门</h4>
+        <p>八年级全一册（五四制 2024 秋）、九年级上册 / 下册（六三制 2024 / 2025 版）。同一课题在两套学制里编号不同，卡片一律用教材的学生实验编号。</p>
+        <p>涵盖课标 8 个必做实验与教材单元探究，读数由模型计算，操作都有对应物体与运动。</p>
+      </div>
+      <div>
+        <h4>物理 · 21 门</h4>
+        <p>鲁教版（五四制）初中物理学生必做实验：八上 7 个、八下 5 个、九上 7 个、九下 2 个，含测量类与探究类。</p>
+        <p>点击卡片在本页沉浸预览，也可用右上角按钮在新窗口打开；课件内可拖拽旋转、滚轮缩放、分步演示。</p>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>依据《义务教育化学 / 物理课程标准（2022 年版）》 · 对照鲁教版初中教材编排</span>
+      <span>three.js r147 · 单文件离线课件 · 仅限教学 · 禁止商用</span>
+    </div>
+  </div>
+</footer>
+
+<div class="viewer" id="viewer">
+  <div class="vbar">
+    <span class="vtitle" id="vtitle">课件预览</span>
+    <span class="vsub" id="vsub"></span>
+    <div class="vactions">
+      <button class="vbtn" id="vprev" title="上一课">← 上一课</button>
+      <button class="vbtn" id="vnext" title="下一课">下一课 →</button>
+      <a class="vbtn" id="vopen" href="#" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>新窗口</a>
+      <button class="vbtn" id="vclose" title="关闭 (Esc)">✕ 关闭</button>
+    </div>
+  </div>
+  <div class="vstage">
+    <div class="vload" id="vload">正在加载 3D 课件…</div>
+    <iframe id="vframe" title="课件预览" allowfullscreen></iframe>
+  </div>
+</div>
+
+<button class="totop" id="totop" title="回到顶部">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<script>
+/* 课程数据由 build/build_chem.py 从 META 单一真源注入 */
+const BOOKS = [
+  {
+    "id": "b8",
+    "num": "01",
+    "name": "八年级全一册",
+    "system": "五四制 · 2024 秋",
+    "color": "#0f766e",
+    "soft": "#e5f4f0",
+    "desc": "化学入门与学生必做实验的主阵地：从基本操作、水的组成，到氧气与二氧化碳的制取、燃烧条件，五个实验按教材顺序排开。",
+    "courses": [
+      {
+        "slug": "luhe-skill-step",
+        "chapter": "学生实验 1 · 基本技能训练",
+        "tag": "学生实验 1",
+        "kind": "必做实验",
+        "desc": "药品取用 酒精灯加热 仪器洗涤",
+        "title": "化学实验基本技能训练",
+        "steps": 6,
+        "question": "药品怎么取、酒精灯怎么用、仪器怎么洗？",
+        "href": "./courses/chem-exp/luhe-skill-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-skill-step.jpg",
+        "bid": "b8",
+        "book": "八年级全一册",
+        "color": "#0f766e",
+        "soft": "#e5f4f0",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-water-step",
+        "chapter": "学生实验 2 · 水的组成",
+        "tag": "学生实验 2",
+        "kind": "必做实验",
+        "desc": "电解水 氢气 氧气 体积比 2:1",
+        "title": "水的组成及变化的探究",
+        "steps": 8,
+        "question": "通上电，两支试管里的气体为什么总是 2:1？",
+        "href": "./courses/chem-exp/luhe-water-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-water-step.jpg",
+        "bid": "b8",
+        "book": "八年级全一册",
+        "color": "#0f766e",
+        "soft": "#e5f4f0",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-o2-step",
+        "chapter": "学生实验 3 · 氧气",
+        "tag": "学生实验 3",
+        "kind": "必做实验",
+        "desc": "高锰酸钾制氧 排水集气 带火星木条复燃",
+        "title": "氧气的实验室制取与性质",
+        "steps": 8,
+        "question": "为什么试管口要略向下倾斜？带火星的木条为什么会复燃？",
+        "href": "./courses/chem-exp/luhe-o2-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-o2-step.jpg",
+        "bid": "b8",
+        "book": "八年级全一册",
+        "color": "#0f766e",
+        "soft": "#e5f4f0",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-co2-step",
+        "chapter": "学生实验 4 · 二氧化碳",
+        "tag": "学生实验 4",
+        "kind": "必做实验",
+        "desc": "大理石 稀盐酸 向上排空气 石灰水",
+        "title": "二氧化碳的实验室制取与性质",
+        "steps": 8,
+        "question": "为什么用大理石和稀盐酸制二氧化碳？它能不能像氧气那样排水收集？",
+        "href": "./courses/chem-exp/luhe-co2-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-co2-step.jpg",
+        "bid": "b8",
+        "book": "八年级全一册",
+        "color": "#0f766e",
+        "soft": "#e5f4f0",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-burn-step",
+        "chapter": "学生实验 5 · 燃烧条件",
+        "tag": "学生实验 5",
+        "kind": "必做实验",
+        "desc": "白磷 红磷 燃烧三要素 灭火",
+        "title": "燃烧条件的探究",
+        "steps": 8,
+        "question": "白磷和红磷都摆在铜片上，为什么只有白磷烧起来？",
+        "href": "./courses/chem-exp/luhe-burn-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-burn-step.jpg",
+        "bid": "b8",
+        "book": "八年级全一册",
+        "color": "#0f766e",
+        "soft": "#e5f4f0",
+        "subject": "chem"
+      }
+    ],
+    "subject": "chem"
+  },
+  {
+    "id": "b9a",
+    "num": "02",
+    "name": "九年级上册",
+    "system": "六三制 · 2024 秋",
+    "color": "#3c5fbf",
+    "soft": "#e9eefb",
+    "desc": "按 2024 版六三制教材单元编排：步入化学殿堂、认识物质的构成、探秘水世界；另收录「学生实验3 配制氯化钠溶液」的必做实验版。五四制九年级对应的是全一册，单元顺序不同。",
+    "courses": [
+      {
+        "slug": "candle-step",
+        "chapter": "第一单元 步入化学殿堂 · 第二节 体验化学探究",
+        "tag": "第一单元",
+        "kind": "单元探究",
+        "desc": "蜡烛火焰 焰心 产物检验 熄灭白烟",
+        "title": "对蜡烛及其燃烧的探究",
+        "steps": 8,
+        "question": "一根蜡烛烧完，除了光，还留下了什么看不见的东西？",
+        "href": "./courses/chem-exp/candle-step.html",
+        "cover": "./courses/chem-exp/thumbs/candle-step.jpg",
+        "bid": "b9a",
+        "book": "九年级上册",
+        "color": "#3c5fbf",
+        "soft": "#e9eefb",
+        "subject": "chem"
+      },
+      {
+        "slug": "nacl-step",
+        "chapter": "第二单元 认识物质的构成 · 第一节 原子",
+        "tag": "第二单元",
+        "kind": "单元探究",
+        "desc": "钠原子 氯原子 电子转移 离子 氯化钠",
+        "title": "氯化钠的形成",
+        "steps": 10,
+        "question": "钠原子「多一个」电子、氯原子「少一个」，为什么凑到一起就成了稳定的食盐？",
+        "href": "./courses/chem-exp/nacl-step.html",
+        "cover": "./courses/chem-exp/thumbs/nacl-step.jpg",
+        "bid": "b9a",
+        "book": "九年级上册",
+        "color": "#3c5fbf",
+        "soft": "#e9eefb",
+        "subject": "chem"
+      },
+      {
+        "slug": "watercycle-step",
+        "chapter": "第三单元 探秘水世界 · 第一节 运动的水分子",
+        "tag": "第三单元",
+        "kind": "单元探究",
+        "desc": "蒸发 降水 水的天然循环 三态变化",
+        "title": "水的天然循环",
+        "steps": 9,
+        "question": "水从海里蒸发上天，又落回地面——转完这一整圈，水还是水吗？",
+        "href": "./courses/chem-exp/watercycle-step.html",
+        "cover": "./courses/chem-exp/thumbs/watercycle-step.jpg",
+        "bid": "b9a",
+        "book": "九年级上册",
+        "color": "#3c5fbf",
+        "soft": "#e9eefb",
+        "subject": "chem"
+      },
+      {
+        "slug": "dissolved-step",
+        "chapter": "第三单元 探秘水世界 · 第三节 物质在水中的溶解",
+        "tag": "第三单元",
+        "kind": "单元探究",
+        "desc": "溶解 水合离子 扩散 微观过程",
+        "title": "氯化钠溶于水的微观过程",
+        "steps": 8,
+        "question": "一勺盐放进水里，为什么会「消失」，又凭什么让整杯水都变咸？",
+        "href": "./courses/chem-exp/dissolved-step.html",
+        "cover": "./courses/chem-exp/thumbs/dissolved-step.jpg",
+        "bid": "b9a",
+        "book": "九年级上册",
+        "color": "#3c5fbf",
+        "soft": "#e9eefb",
+        "subject": "chem"
+      },
+      {
+        "slug": "peizhi-step",
+        "chapter": "第三单元 探秘水世界 · 溶液组成的定量表示",
+        "tag": "第三单元",
+        "kind": "单元探究",
+        "desc": "溶质质量分数 称量 量取 溶解 装瓶",
+        "title": "配制一定溶质质量分数的溶液",
+        "steps": 8,
+        "question": "要配 100 g 6% 的氯化钠溶液，该称多少克盐、量多少毫升水？",
+        "href": "./courses/chem-exp/peizhi-step.html",
+        "cover": "./courses/chem-exp/thumbs/peizhi-step.jpg",
+        "bid": "b9a",
+        "book": "九年级上册",
+        "color": "#3c5fbf",
+        "soft": "#e9eefb",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-peizhi-step",
+        "chapter": "学生实验 3 · 一定溶质质量分数的氯化钠溶液的配制",
+        "tag": "学生实验 3",
+        "kind": "必做实验",
+        "desc": "100g 6% 氯化钠溶液 配制 必做实验版",
+        "title": "配制一定溶质质量分数的氯化钠溶液",
+        "steps": 8,
+        "question": "配 100 g 6% 的食盐水，该称多少盐、量多少水？",
+        "href": "./courses/chem-exp/luhe-peizhi-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-peizhi-step.jpg",
+        "bid": "b9a",
+        "book": "九年级上册",
+        "color": "#3c5fbf",
+        "soft": "#e9eefb",
+        "subject": "chem"
+      }
+    ],
+    "subject": "chem"
+  },
+  {
+    "id": "b9b",
+    "num": "03",
+    "name": "九年级下册",
+    "system": "六三制 · 2025 春",
+    "color": "#b2642a",
+    "soft": "#fbeee2",
+    "desc": "从混合物分离到金属、酸碱性质，再到一个完整的定量探究：四个实验覆盖课标必做的分离、性质与测定类任务。",
+    "courses": [
+      {
+        "slug": "luhe-cuyan-step",
+        "chapter": "学生实验 8 · 粗盐中难溶性杂质的去除",
+        "tag": "学生实验 8",
+        "kind": "必做实验",
+        "desc": "粗盐 溶解 过滤 蒸发 难溶性杂质",
+        "title": "粗盐中难溶性杂质的去除",
+        "steps": 8,
+        "question": "粗盐里的泥沙，怎么一步步被分离出去？",
+        "href": "./courses/chem-exp/luhe-cuyan-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-cuyan-step.jpg",
+        "bid": "b9b",
+        "book": "九年级下册",
+        "color": "#b2642a",
+        "soft": "#fbeee2",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-acidbase-step",
+        "chapter": "学生实验 7 · 酸与碱",
+        "tag": "学生实验 7",
+        "kind": "必做实验",
+        "desc": "指示剂 酸与金属 酸碱中和 氧化物",
+        "title": "常见酸、碱的化学性质",
+        "steps": 8,
+        "question": "酸遇上指示剂、金属、碱，分别会发生什么？",
+        "href": "./courses/chem-exp/luhe-acidbase-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-acidbase-step.jpg",
+        "bid": "b9b",
+        "book": "九年级下册",
+        "color": "#b2642a",
+        "soft": "#fbeee2",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-metal-step",
+        "chapter": "学生实验 9 · 金属",
+        "tag": "学生实验 9",
+        "kind": "必做实验",
+        "desc": "金属活动性 物理性质 与酸反应 置换",
+        "title": "常见金属的物理性质和化学性质",
+        "steps": 7,
+        "question": "镁、锌、铁、铜，谁更活泼？从哪几个现象能比出来？",
+        "href": "./courses/chem-exp/luhe-metal-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-metal-step.jpg",
+        "bid": "b9b",
+        "book": "九年级下册",
+        "color": "#b2642a",
+        "soft": "#fbeee2",
+        "subject": "chem"
+      },
+      {
+        "slug": "luhe-eggshell-step",
+        "chapter": "学生实验 10 · 定量探究",
+        "tag": "学生实验 10",
+        "kind": "必做实验",
+        "desc": "鸡蛋壳 碳酸钙 盐酸 排水量气 质量分数",
+        "title": "测定鸡蛋壳中碳酸钙的含量",
+        "steps": 7,
+        "question": "鸡蛋壳里的碳酸钙，能用酸把它「量」出来吗？",
+        "href": "./courses/chem-exp/luhe-eggshell-step.html",
+        "cover": "./courses/chem-exp/thumbs/luhe-eggshell-step.jpg",
+        "bid": "b9b",
+        "book": "九年级下册",
+        "color": "#b2642a",
+        "soft": "#fbeee2",
+        "subject": "chem"
+      }
+    ],
+    "subject": "chem"
+  },
+  {
+    "id": "p8",
+    "num": "04",
+    "name": "八上",
+    "system": "五四制 · 初中物理",
+    "color": "#1e6fb0",
+    "soft": "#e6f0f8",
+    "subject": "phys",
+    "desc": "鲁教版（五四制）初中物理 · 八年级上册：从质量、密度、长度与时间、速度的测量，到光的反射、平面镜、凸透镜成像的探究。",
+    "courses": [
+      {
+        "slug": "tianping",
+        "chapter": "第四章 物质与材料 · 第一节 质量及其测量",
+        "tag": "实验 01 · 课标 4.1.1",
+        "kind": "测量类",
+        "desc": "测量类 · 八上 · 第四章 物质与材料 · 第一节 质量及其测量",
+        "title": "用托盘天平测量物体的质量",
+        "steps": null,
+        "question": "器材：托盘天平（含砝码）、小木块、烧杯、水",
+        "href": "./courses/physics-exp/tianping-step.html",
+        "cover": null,
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/tianping.html",
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
+      },
+      {
+        "slug": "density",
+        "chapter": "第四章 物质与材料 · 第三节 测量物质的密度",
+        "tag": "实验 02 · 课标 4.1.2",
+        "kind": "测量类",
+        "desc": "测量类 · 八上 · 第四章 物质与材料 · 第三节 测量物质的密度",
+        "title": "测量固体和液体的密度",
+        "steps": null,
+        "question": "器材：天平、量筒、小石块、盐水",
+        "href": "./courses/physics-exp/density-step.html",
+        "cover": null,
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/density.html",
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
+      },
+      {
+        "slug": "length-time",
+        "chapter": "第一章 机械运动 / 走进实验室 · 第四节",
+        "tag": "实验 04 · 课标 4.1.4",
+        "kind": "测量类",
+        "desc": "测量类 · 八上 · 第一章 机械运动 / 走进实验室 · 第四节",
+        "title": "用刻度尺测量长度，用表测量时间",
+        "steps": null,
+        "question": "器材：刻度尺、停表",
+        "href": "./courses/physics-exp/length-time-step.html",
+        "cover": null,
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/length-time.html",
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
+      },
+      {
+        "slug": "speed",
+        "chapter": "第一章 机械运动 · 第三节 速度的测量",
+        "tag": "实验 05 · 课标 4.1.5",
+        "kind": "测量类",
+        "desc": "测量类 · 八上 · 第一章 机械运动 · 第三节 速度的测量",
+        "title": "测量物体运动的速度",
+        "steps": null,
+        "question": "器材：刻度尺、秒表、小车、斜面",
+        "href": "./courses/physics-exp/speed-step.html",
+        "cover": null,
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/speed.html",
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
+      },
+      {
+        "slug": "reflection",
+        "chapter": "第三章 光现象 · 第二节 光的反射",
+        "tag": "实验 15 · 课标 4.2.6",
+        "kind": "探究类",
+        "desc": "探究类 · 八上 · 第三章 光现象 · 第二节 光的反射",
+        "title": "探究光的反射定律",
+        "steps": null,
+        "question": "器材：激光笔、平面镜、量角器、白纸",
+        "href": "./courses/physics-exp/reflection-step.html",
+        "cover": null,
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/reflection.html",
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
+      },
+      {
+        "slug": "plane-mirror",
+        "chapter": "第三章 光现象 · 第三节 平面镜成像",
+        "tag": "实验 16 · 课标 4.2.7",
+        "kind": "探究类",
+        "desc": "探究类 · 八上 · 第三章 光现象 · 第三节 平面镜成像",
+        "title": "探究平面镜成像的特点",
+        "steps": null,
+        "question": "器材：平板玻璃、两支蜡烛、刻度尺、方格纸",
+        "href": "./courses/physics-exp/plane-mirror-step.html",
+        "cover": null,
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/plane-mirror.html",
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
+      },
+      {
+        "slug": "convex-lens",
+        "chapter": "第三章 光现象 · 第五节 凸透镜成像的规律",
+        "tag": "实验 17 · 课标 4.2.8",
+        "kind": "探究类",
+        "desc": "探究类 · 八上 · 第三章 光现象 · 第五节 凸透镜成像的规律",
+        "title": "探究凸透镜成像的规律",
+        "steps": null,
+        "question": "器材：凸透镜、光具座、蜡烛、光屏",
+        "href": "./courses/physics-exp/convex-lens-step.html",
+        "cover": null,
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/convex-lens.html",
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
+      }
+    ]
+  },
+  {
+    "id": "p8x",
+    "num": "05",
+    "name": "八下",
+    "system": "五四制 · 初中物理",
+    "color": "#2a9d8f",
+    "soft": "#e3f4f1",
+    "subject": "phys",
+    "desc": "八年级下册：力与运动、压强、浮力、简单机械相关的测量与探究实验。",
+    "courses": [
+      {
+        "slug": "spring",
+        "chapter": "第六章 力与运动 · 第二节 弹力",
+        "tag": "实验 06 · 课标 4.1.6",
+        "kind": "测量类",
+        "desc": "测量类 · 八下 · 第六章 力与运动 · 第二节 弹力",
+        "title": "用弹簧测力计测量力",
+        "steps": null,
+        "question": "器材：弹簧测力计、钩码",
+        "href": "./courses/physics-exp/spring-step.html",
+        "cover": null,
+        "bid": "p8x",
+        "book": "八下",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/spring.html",
+        "color": "#2a9d8f",
+        "soft": "#e3f4f1"
+      },
+      {
+        "slug": "friction",
+        "chapter": "第六章 力与运动 · 第四节 摩擦力",
+        "tag": "实验 11 · 课标 4.2.2",
+        "kind": "探究类",
+        "desc": "探究类 · 八下 · 第六章 力与运动 · 第四节 摩擦力",
+        "title": "探究滑动摩擦力大小与哪些因素有关",
+        "steps": null,
+        "question": "器材：弹簧测力计、木块、木板、棉布、毛巾",
+        "href": "./courses/physics-exp/friction-step.html",
+        "cover": null,
+        "bid": "p8x",
+        "book": "八下",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/friction.html",
+        "color": "#2a9d8f",
+        "soft": "#e3f4f1"
+      },
+      {
+        "slug": "liquid-pressure",
+        "chapter": "第七章 压强 · 第二节 液体压强",
+        "tag": "实验 12 · 课标 4.2.3",
+        "kind": "探究类",
+        "desc": "探究类 · 八下 · 第七章 压强 · 第二节 液体压强",
+        "title": "探究液体压强与哪些因素有关",
+        "steps": null,
+        "question": "器材：压强计、水、盐水",
+        "href": "./courses/physics-exp/liquid-pressure-step.html",
+        "cover": null,
+        "bid": "p8x",
+        "book": "八下",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/liquid-pressure.html",
+        "color": "#2a9d8f",
+        "soft": "#e3f4f1"
+      },
+      {
+        "slug": "buoyancy",
+        "chapter": "第八章 浮力 · 第二节 阿基米德原理",
+        "tag": "实验 13 · 课标 4.2.4",
+        "kind": "探究类",
+        "desc": "探究类 · 八下 · 第八章 浮力 · 第二节 阿基米德原理",
+        "title": "探究浮力大小与哪些因素有关",
+        "steps": null,
+        "question": "器材：弹簧测力计、溢水杯、石块、水",
+        "href": "./courses/physics-exp/buoyancy-step.html",
+        "cover": null,
+        "bid": "p8x",
+        "book": "八下",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/buoyancy.html",
+        "color": "#2a9d8f",
+        "soft": "#e3f4f1"
+      },
+      {
+        "slug": "lever",
+        "chapter": "第九章 简单机械 · 第一节 杠杆",
+        "tag": "实验 14 · 课标 4.2.5",
+        "kind": "探究类",
+        "desc": "探究类 · 八下 · 第九章 简单机械 · 第一节 杠杆",
+        "title": "探究杠杆的平衡条件",
+        "steps": null,
+        "question": "器材：杠杆、支架、钩码、弹簧测力计",
+        "href": "./courses/physics-exp/lever-step.html",
+        "cover": null,
+        "bid": "p8x",
+        "book": "八下",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/lever.html",
+        "color": "#2a9d8f",
+        "soft": "#e3f4f1"
+      }
+    ]
+  },
+  {
+    "id": "p9",
+    "num": "06",
+    "name": "九上",
+    "system": "五四制 · 初中物理",
+    "color": "#6a5acd",
+    "soft": "#ece8f7",
+    "subject": "phys",
+    "desc": "九年级上册：温度、电流、电压、电阻的测量，以及沸腾、串并联电路、欧姆定律的探究。",
+    "courses": [
+      {
+        "slug": "thermometer",
+        "chapter": "第十一章 物态变化 · 第一节 温度及其测量",
+        "tag": "实验 03 · 课标 4.1.3",
+        "kind": "测量类",
+        "desc": "测量类 · 九上 · 第十一章 物态变化 · 第一节 温度及其测量",
+        "title": "用常见温度计测量温度",
+        "steps": null,
+        "question": "器材：实验室温度计、体温计、水",
+        "href": "./courses/physics-exp/thermometer-step.html",
+        "cover": null,
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/thermometer.html",
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
+      },
+      {
+        "slug": "ammeter",
+        "chapter": "第十四章 电流 电压 电阻 · 第一节 电流",
+        "tag": "实验 07 · 课标 4.1.7",
+        "kind": "测量类",
+        "desc": "测量类 · 九上 · 第十四章 电流 电压 电阻 · 第一节 电流",
+        "title": "用电流表测量电流",
+        "steps": null,
+        "question": "器材：电流表、电源、灯泡、导线",
+        "href": "./courses/physics-exp/ammeter-step.html",
+        "cover": null,
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/ammeter.html",
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
+      },
+      {
+        "slug": "voltmeter",
+        "chapter": "第十四章 电流 电压 电阻 · 第三节 电压",
+        "tag": "实验 08 · 课标 4.1.8",
+        "kind": "测量类",
+        "desc": "测量类 · 九上 · 第十四章 电流 电压 电阻 · 第三节 电压",
+        "title": "用电压表测量电压",
+        "steps": null,
+        "question": "器材：电压表、电源、灯泡、导线",
+        "href": "./courses/physics-exp/voltmeter-step.html",
+        "cover": null,
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/voltmeter.html",
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
+      },
+      {
+        "slug": "resistance",
+        "chapter": "第十五章 欧姆定律 · 第三节 电阻的测量",
+        "tag": "实验 09 · 课标 4.1.9",
+        "kind": "测量类",
+        "desc": "测量类 · 九上 · 第十五章 欧姆定律 · 第三节 电阻的测量",
+        "title": "用电流表和电压表测量电阻",
+        "steps": null,
+        "question": "器材：电流表、电压表、滑动变阻器、待测电阻",
+        "href": "./courses/physics-exp/resistance-step.html",
+        "cover": null,
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/resistance.html",
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
+      },
+      {
+        "slug": "boiling",
+        "chapter": "第十一章 物态变化 · 第三节 汽化与液化",
+        "tag": "实验 10 · 课标 4.2.1",
+        "kind": "探究类",
+        "desc": "探究类 · 九上 · 第十一章 物态变化 · 第三节 汽化与液化",
+        "title": "探究水在沸腾前后温度变化的特点",
+        "steps": null,
+        "question": "器材：酒精灯、烧杯、温度计、水",
+        "href": "./courses/physics-exp/boiling-step.html",
+        "cover": null,
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/boiling.html",
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
+      },
+      {
+        "slug": "series-parallel",
+        "chapter": "第十四章 · 第二节(电流)/第四节(电压)",
+        "tag": "实验 20 · 课标 4.2.11",
+        "kind": "探究类",
+        "desc": "探究类 · 九上 · 第十四章 · 第二节(电流)/第四节(电压)",
+        "title": "探究串联电路和并联电路中电流、电压的特点",
+        "steps": null,
+        "question": "器材：电流表、电压表、灯泡、导线",
+        "href": "./courses/physics-exp/series-parallel-step.html",
+        "cover": null,
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/series-parallel.html",
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
+      },
+      {
+        "slug": "ohm",
+        "chapter": "第十五章 欧姆定律 · 第一节",
+        "tag": "实验 21 · 课标 4.2.12",
+        "kind": "探究类",
+        "desc": "探究类 · 九上 · 第十五章 欧姆定律 · 第一节",
+        "title": "探究电流与电压、电阻的关系",
+        "steps": null,
+        "question": "器材：电流表、电压表、滑动变阻器、定值电阻",
+        "href": "./courses/physics-exp/ohm-step.html",
+        "cover": null,
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/ohm.html",
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
+      }
+    ]
+  },
+  {
+    "id": "p9x",
+    "num": "07",
+    "name": "九下",
+    "system": "五四制 · 初中物理",
+    "color": "#c0568f",
+    "soft": "#f7e8f0",
+    "subject": "phys",
+    "desc": "九年级下册：电与磁相关的两个探究实验。",
+    "courses": [
+      {
+        "slug": "solenoid",
+        "chapter": "第十八章 电与磁 · 第二节 电生磁",
+        "tag": "实验 18 · 课标 4.2.9",
+        "kind": "探究类",
+        "desc": "探究类 · 九下 · 第十八章 电与磁 · 第二节 电生磁",
+        "title": "探究通电螺线管外部磁场的方向",
+        "steps": null,
+        "question": "器材：螺线管、电源、小磁针、铁屑",
+        "href": "./courses/physics-exp/solenoid-step.html",
+        "cover": null,
+        "bid": "p9x",
+        "book": "九下",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/solenoid.html",
+        "color": "#c0568f",
+        "soft": "#f7e8f0"
+      },
+      {
+        "slug": "induction",
+        "chapter": "第十八章 电与磁 · 第五节 磁生电",
+        "tag": "实验 19 · 课标 4.2.10",
+        "kind": "探究类",
+        "desc": "探究类 · 九下 · 第十八章 电与磁 · 第五节 磁生电",
+        "title": "探究导体在磁场中运动时产生感应电流的条件",
+        "steps": null,
+        "question": "器材：蹄形磁铁、导体棒、灵敏电流计、导线",
+        "href": "./courses/physics-exp/induction-step.html",
+        "cover": null,
+        "bid": "p9x",
+        "book": "九下",
+        "subject": "phys",
+        "draft": "./courses/physics-exp/induction.html",
+        "color": "#c0568f",
+        "soft": "#f7e8f0"
+      }
+    ]
+  }
+];
+
+const $ = s => document.querySelector(s);
+const ALL = BOOKS.flatMap(b => b.courses.map(c => ({...c, book:b.name, bid:b.id})));
+let state = { f:'all', q:'' };
+
+/* 统计卡 */
+const _statData = [
+  ['36','课件总数','化学 15 · 物理 21'],
+  ['15','化学实验','八全 / 九上 / 九下'],
+  ['21','物理实验','八上 / 八下 / 九上 / 九下'],
+  ['100%','单文件离线','three.js r147 · 断网可用']
+];
+$('#stats').innerHTML = _statData.map(s =>
+  `<div class="stat"><span class="n">${s[0]}</span>
+    <div><div class="t">${s[1]}</div><div class="s">${s[2]}</div></div>
+    <span class="dot" style="background:#0e7490;box-shadow:0 0 0 5px #0e749033"></span></div>`).join('');
+$('#totalNum').textContent = ALL.length;
+
+/* 渲染 */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const playSvg = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const arrowSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+const winSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>';
+
+function match(c){
+  if(state.f === 'chem' && c.subject !== 'chem') return false;
+  if(state.f === 'phys' && c.subject !== 'phys') return false;
+  if(state.f === 'must' && c.kind !== '必做实验') return false;
+  if(state.f === 'unit' && c.kind !== '单元探究') return false;
+  if(state.f === 'measure' && c.kind !== '测量类') return false;
+  if(state.f === 'inquiry' && c.kind !== '探究类') return false;
+  if(state.q){
+    const hay = [c.title,c.desc,c.chapter,c.question,c.tag,c.kind,c.book].join(' ').toLowerCase();
+    if(!hay.includes(state.q.toLowerCase())) return false;
+  }
+  return true;
+}
+function cardHtml(c,i){
+  const cover = c.cover
+    ? `<img src="${esc(c.cover)}" alt="${esc(c.title)} 课件画面" onerror="this.style.opacity=0">`
+    : `<div class="cover-fallback"><div class="cf-title">${esc(c.title)}</div></div>`;
+  const steps = (typeof c.steps === 'number') ? `<span class="cover-steps">${c.steps} 步</span>` : '';
+  const draft = c.draft ? `<a class="draft-link" href="${esc(c.draft)}" target="_blank" rel="noopener" title="查看文字初稿">文字初稿</a>` : '';
+  return `<article class="card" data-slug="${esc(c.slug)}" tabindex="0" style="--bc:${c.color};--bs:${c.soft}">
+    <div class="cover">
+      ${cover}
+      <span class="cover-tag">${esc(c.tag)}</span>
+      ${steps}
+      <span class="kind">${esc(c.kind)}</span>
+      <div class="cover-play"><span>${playSvg}</span></div>
+    </div>
+    <div class="card-body">
+      <div class="chapter">${esc(c.chapter)}</div>
+      <h3>${esc(c.title)}</h3>
+      <p class="q">${esc(c.question)}</p>
+      <div class="card-foot">
+        <span class="go">进入课件 ${arrowSvg}</span>
+        ${draft}
+        <button class="newwin" title="在新窗口打开" data-open="${esc(c.href)}">${winSvg}</button>
+      </div>
+    </div>
+  </article>`;
+}
+function render(){
+  let n = 0, html = '', lastSubj = '';
+  BOOKS.forEach(b => {
+    const list = b.courses.filter(match);
+    if(!list.length) return;
+    n += list.length;
+    const subjDiv = b.subject !== lastSubj ? `<div class="subj-div" id="subject-${b.subject}"><span class="subj-dot" style="background:${b.color}"></span>${b.subject === 'chem' ? '化学 · 初中化学 3D 课件' : '物理 · 初中物理 3D 课件'}</div>` : '';
+    lastSubj = b.subject;
+    html += subjDiv + `<section class="book" id="book-${b.id}" style="--bc:${b.color};--bs:${b.soft}">
+      <div class="book-head">
+        <div class="book-num">${b.num}</div>
+        <div class="book-info">
+          <h2>${esc(b.name)} <span class="sys">${esc(b.system)}</span></h2>
+          <p>${esc(b.desc)}</p>
+          <div class="book-count">本册收录 <b>${String(list.length).padStart(2,'0')}</b> 门课件</div>
+        </div>
+      </div>
+      <div class="grid">${list.map(cardHtml).join('')}</div>
+    </section>`;
+  });
+  $('#books').innerHTML = html || `<div class="empty"><div class="big">⌕</div>
+    <h3>没有找到匹配的课件</h3><p>换个关键词，或清空筛选条件试试</p>
+    <button id="resetBtn">清空筛选</button></div>`;
+  $('#result').textContent = (state.q || state.f !== 'all') ? `找到 ${n} 门` : `共 ${ALL.length} 门`;
+  if($('#resetBtn')) $('#resetBtn').onclick = () => { state={f:'all',q:''}; $('#q').value=''; syncChips(); render(); };
+  stagger();
+}
+/* 只做同批次错峰淡入，不依赖滚动观察器：整页截图 / 打印 / 锚点跳转都能完整显示 */
+function stagger(){
+  document.querySelectorAll('.card').forEach((el,i) => el.style.setProperty('--d', (i%6*50)+'ms'));
+}
+function syncChips(){ document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.f === state.f)); }
+
+$('#chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if(!b) return;
+  state.f = b.dataset.f; syncChips(); render();
+  if(['b8','b9a','b9b'].includes(state.f)){
+    const t = document.getElementById('book-'+state.f);
+    if(t) t.scrollIntoView({behavior:'smooth',block:'start'});
+  } else window.scrollTo({top:document.querySelector('.toolbar').offsetTop,behavior:'smooth'});
+});
+let timer;
+$('#q').addEventListener('input', e => { clearTimeout(timer); timer=setTimeout(()=>{state.q=e.target.value.trim();render();},120); });
+
+/* 沉浸预览 */
+const viewer=$('#viewer'), frame=$('#vframe'), vload=$('#vload');
+let cur = -1, loadTimer;
+function hideLoad(){ clearTimeout(loadTimer); vload.classList.add('hide'); vload.style.display='none'; }
+function openAt(idx){
+  if(idx<0 || idx>=ALL.length) return;
+  cur = idx; const c = ALL[idx];
+  $('#vtitle').textContent = c.title;
+  $('#vsub').textContent = c.book + ' · ' + c.chapter;
+  $('#vopen').href = c.href;
+  $('#vprev').disabled = idx===0; $('#vnext').disabled = idx===ALL.length-1;
+  vload.style.display='grid';
+  vload.classList.remove('hide');
+  frame.onload = hideLoad;              // 先绑事件再给 src，避免本地 file:// 抢跑
+  frame.src = c.href;
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(hideLoad, 2000); // 兜底：即使 iframe 未派发 load 也不留遮罩
+  viewer.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeViewer(){
+  clearTimeout(loadTimer);
+  viewer.classList.remove('open'); frame.src='about:blank'; document.body.style.overflow='';
+}
+$('#books').addEventListener('click', e => {
+  const win = e.target.closest('[data-open]');
+  if(win){ e.stopPropagation(); window.open(win.dataset.open,'_blank','noopener'); return; }
+  const card = e.target.closest('.card');
+  if(card) openAt(ALL.findIndex(c => c.slug === card.dataset.slug));
+});
+$('#books').addEventListener('keydown', e => {
+  if(e.key==='Enter' || e.key===' '){ const c=e.target.closest('.card'); if(c){e.preventDefault();openAt(ALL.findIndex(x=>x.slug===c.dataset.slug));} }
+});
+$('#vclose').onclick = closeViewer;
+$('#vprev').onclick = () => openAt(cur-1);
+$('#vnext').onclick = () => openAt(cur+1);
+viewer.addEventListener('click', e => { if(e.target===viewer) closeViewer(); });
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape' && viewer.classList.contains('open')) closeViewer();
+  if(viewer.classList.contains('open')){
+    if(e.key==='ArrowLeft') openAt(cur-1);
+    if(e.key==='ArrowRight') openAt(cur+1);
+  }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); $('#q').focus(); }
+  if(e.key==='/' && document.activeElement!==$('#q') && !viewer.classList.contains('open')){ e.preventDefault(); $('#q').focus(); }
+});
+
+/* 主题 / 回顶 */
+const saved = localStorage.getItem('luhe-theme');
+if(saved==='dark') document.documentElement.dataset.theme='dark';
+$('#themeBtn').onclick = () => {
+  const d = document.documentElement.dataset.theme==='dark';
+  document.documentElement.dataset.theme = d ? 'light' : 'dark';
+  localStorage.setItem('luhe-theme', d ? 'light' : 'dark');
+};
+$('#totop').onclick = () => window.scrollTo({top:0,behavior:'smooth'});
+addEventListener('scroll', () => $('#totop').classList.toggle('show', scrollY>600), {passive:true});
+
+/* hash 直达册次 */
+if(location.hash.startsWith('#book-')){
+  const f = location.hash.slice(6);
+  if(['b8','b9a','b9b'].includes(f)){ state.f=f; syncChips(); }
+}
+render();
+</script>
+<!-- 格物实验室·目录页增强(release_polish) -->
+<style>
+.gw-lic{position:fixed;left:16px;bottom:16px;z-index:99998;display:inline-flex;align-items:center;gap:7px;
+  padding:7px 13px;border-radius:999px;background:rgba(13,28,42,.82);color:#ffd9a8;
+  font:600 12.5px/1 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  border:1px solid rgba(255,180,120,.4);backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(0,0,0,.3);
+  letter-spacing:.3px;pointer-events:none}
+.gw-lic svg{width:14px;height:14px}
+.gw-card-dl{display:inline-flex;align-items:center;gap:5px;margin-left:auto;
+  padding:6px 12px;border-radius:9px;font-size:12px;font-weight:600;text-decoration:none;
+  color:#0e7490;background:rgba(14,116,144,.1);border:1px solid rgba(14,116,144,.25);transition:.16s;white-space:nowrap}
+.gw-card-dl:hover{background:rgba(14,116,144,.18)}
+.gw-card-dl svg{width:13px;height:13px}
+@media(max-width:560px){.gw-lic{font-size:11px;padding:6px 10px}}
+</style>
+<div class="gw-lic">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6 18.4 18.4"/></svg>
+  仅限教学使用 · 禁止商用
+</div>
+<script>
+(function(){
+  var dlSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>';
+  function addDl(){
+    document.querySelectorAll('.card').forEach(function(card){
+      if(card.querySelector('.gw-card-dl')) return;
+      var href=null, main=card.querySelector('.card-main');
+      if(main&&main.getAttribute('href')) href=main.getAttribute('href');
+      if(!href){ var ow=card.querySelector('[data-open]'); if(ow) href=ow.getAttribute('data-open'); }
+      var slug=card.getAttribute('data-slug');
+      if(!href&&slug) href='./'+slug+'-step.html';
+      if(!href) return;
+      var a=document.createElement('a');
+      a.className='gw-card-dl'; a.href=href; a.setAttribute('download','');
+      a.innerHTML=dlSvg+'<span>下载</span>';
+      var foot=card.querySelector('.card-foot')||card.querySelector('.links');
+      if(foot) foot.appendChild(a);
+    });
+  }
+  if(typeof window.render==='function'){ var _r=window.render; window.render=function(){ _r.apply(window,arguments); addDl(); }; }
+  addDl();
+})();
+</script>
+</body>
+</html>
