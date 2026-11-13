@@ -815,6 +815,7 @@ render();
       if(card.querySelector('.gw-card-dl')) return;
       var href=null, main=card.querySelector('.card-main');
       if(main&&main.getAttribute('href')) href=main.getAttribute('href');
+      if(!href){ var ow=card.querySelector('[data-open]'); if(ow) href=ow.getAttribute('data-open'); }
       var slug=card.getAttribute('data-slug');
       if(!href&&slug) href='./'+slug+'-step.html';
       if(!href) return;

@@ -292,6 +292,11 @@ var T = window.THREE;
 var cv = document.getElementById('cv');
 var renderer, scene, camera;
 var W = 1, H = 1, DPR = 1;
+/* 渲染像素密度：1x 屏上 devicePixelRatio=1 时斜边/齿形全是阶梯（"像素网"）。
+   统一按 2x 超采样渲染；高分屏也钳到 2，兼顾教室核显的性能红线。
+   注意后处理 composer 传入自定义 RT 时其 _pixelRatio 恒为 1，
+   所以 composer 的 setSize 必须传物理像素 W*DPR，不能传 CSS 像素。 */
+var SS = 2;
 
 var cam = { yaw: .6, pitch: .28, dist: 100, tx: 0, ty: 9, tz: 0, fov: 42 };
 var CAM0 = Object.assign({}, cam);
@@ -540,7 +545,7 @@ var BLOB_TEX = null;
 function init3d() {
   if (T.ColorManagement) T.ColorManagement.legacyMode = false;
   renderer = new T.WebGLRenderer({ canvas: cv, antialias: true });
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = SS;
   renderer.setPixelRatio(DPR);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
@@ -2274,8 +2279,12 @@ function setupPostfx() {
   /* 走 HDR 管线：场景先不做色调映射渲染进半浮点 RT，Bloom 在 HDR 上做，
      最后由终合 Pass 统一做 ACES + sRGB。这样只有真正的高光（>1）才发光。 */
   renderer.toneMapping = T.NoToneMapping;
-  var rt = new T.WebGLRenderTarget(W * DPR, H * DPR, { type: T.HalfFloatType, encoding: T.LinearEncoding });
+  /* RT 用 CSS 尺寸创建，随后 composer.setPixelRatio(DPR) 统一把 RT 与所有 pass
+     放大到物理像素。若这里传 W*DPR 又调 setSize(W,H)，composer 内部 _pixelRatio
+     仍是 1，会把 HDR 缓冲压回 CSS 尺寸 —— 2x 超采样等于白做。 */
+  var rt = new T.WebGLRenderTarget(W, H, { type: T.HalfFloatType, encoding: T.LinearEncoding });
   composer = new T.EffectComposer(renderer, rt);
+  if (composer.setPixelRatio) composer.setPixelRatio(DPR);
   /* SSAOPass 自己渲染场景（含 AO 合成），有它就不再加 RenderPass，避免重复渲染 */
   if (T.SSAOPass) {
     ssaoPass = new T.SSAOPass(scene, camera, W * DPR, H * DPR);
@@ -2371,8 +2380,9 @@ function boot(c) {
 }
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = SS;
   W = window.innerWidth; H = window.innerHeight;
+  renderer.setPixelRatio(DPR);
   renderer.setSize(W, H, false);
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   camera.aspect = W / H;
@@ -3509,17 +3519,25 @@ return K;
       /* 水体贴住玻璃内壁：旧版 rW = R-.22 让水体的侧壁在玻璃里再画一层
          "内筒"，平视就是一只双层水槽。留 .05 只为避免与玻璃同半径打架。 */
       var rW = R - .05 * s;
-      /* 水体：开放侧壁，不画实心顶盖。封闭圆柱的顶盖在俯视特写下
-         就是一整块边缘锐利的蓝色圆盘，读作「塑料板」而不是水。 */
-      var bodyMat = new T.MeshPhysicalMaterial({
-        color: 0x63a9c6, roughness: .25, metalness: 0,
-        transparent: true, opacity: .3, side: T.DoubleSide,
-        depthWrite: false, envMapIntensity: .25
+      /* 水体侧壁若用 DoubleSide 半透明圆柱，近侧 + 远侧会与玻璃壁叠成
+         「第二个内筒」，平视读作双层水槽；再叠一条硬水位线就是第二条缸口。
+         现在：侧壁只画远侧(BackSide)，按局部 y 上下渐隐，不留任何硬边；
+         水位由水面圆盘的菲涅尔边缘自然读出，不再单独画 ringLine。 */
+      var bodyMat = new T.ShaderMaterial({
+        transparent: true, depthWrite: false, side: T.BackSide,
+        uniforms: { uColor: { value: new T.Color(0x6fb0d0) }, uH: { value: wh } },
+        vertexShader: 'varying float vY;' +
+          'void main(){ vY = position.y;' +
+          ' gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+        fragmentShader: 'varying float vY; uniform vec3 uColor; uniform float uH;' +
+          'void main(){ float t = clamp(vY / uH + .5, 0., 1.);' +
+          ' float fade = smoothstep(0., .20, t) * (1. - smoothstep(.70, 1., t));' +
+          ' gl_FragColor = vec4(uColor, .24 * fade); }'
       });
       put(g, new T.Mesh(new T.CylinderGeometry(rW, rW, wh, 48, 1, true), bodyMat),
         'water_wall', [0, .3 * s + wh / 2, 0]);
       /* 水面：菲涅尔反射。正俯视几乎透明，掠射角才亮 —— 真实水面不会
-         在俯视下变成一块不透明色板。 */
+         在俯视下变成一块不透明色板。整体压淡，避免平视时又是一条亮带。 */
       var surfMat = new T.ShaderMaterial({
         transparent: true, depthWrite: false, side: T.DoubleSide,
         uniforms: { uColor: { value: new T.Color(0x8fd0e8) }, uR: { value: rW } },
@@ -3533,12 +3551,11 @@ return K;
           /* 盘缘淡出：掠射角下整片水面会压成一条硬直亮线，边缘不虚化
              就读作"水体里插了一块玻璃板"。 */
           ' float rr = length(vP.xz) / uR;' +
-          ' float edge = 1. - smoothstep(.78, 1.0, rr);' +
-          ' gl_FragColor = vec4(uColor, (.06 + .30 * f) * edge); }'
+          ' float edge = 1. - smoothstep(.74, 1.0, rr);' +
+          ' gl_FragColor = vec4(uColor, (.035 + .20 * f) * edge); }'
       });
       var surf = new T.Mesh(new T.CircleGeometry(rW - .02 * s, 48).rotateX(-PI / 2), surfMat);
       put(g, surf, 'water_surface', [0, wy, 0]);
-      ringLine(g, wy, rW - .01 * s, .34);   /* 水位边缘细线，标出液面高度 */
     }
     return g;
   };

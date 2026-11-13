@@ -292,6 +292,11 @@ var T = window.THREE;
 var cv = document.getElementById('cv');
 var renderer, scene, camera;
 var W = 1, H = 1, DPR = 1;
+/* 渲染像素密度：1x 屏上 devicePixelRatio=1 时斜边/齿形全是阶梯（"像素网"）。
+   统一按 2x 超采样渲染；高分屏也钳到 2，兼顾教室核显的性能红线。
+   注意后处理 composer 传入自定义 RT 时其 _pixelRatio 恒为 1，
+   所以 composer 的 setSize 必须传物理像素 W*DPR，不能传 CSS 像素。 */
+var SS = 2;
 
 var cam = { yaw: .6, pitch: .28, dist: 100, tx: 0, ty: 9, tz: 0, fov: 42 };
 var CAM0 = Object.assign({}, cam);
@@ -540,7 +545,7 @@ var BLOB_TEX = null;
 function init3d() {
   if (T.ColorManagement) T.ColorManagement.legacyMode = false;
   renderer = new T.WebGLRenderer({ canvas: cv, antialias: true });
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = SS;
   renderer.setPixelRatio(DPR);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
@@ -2274,8 +2279,12 @@ function setupPostfx() {
   /* 走 HDR 管线：场景先不做色调映射渲染进半浮点 RT，Bloom 在 HDR 上做，
      最后由终合 Pass 统一做 ACES + sRGB。这样只有真正的高光（>1）才发光。 */
   renderer.toneMapping = T.NoToneMapping;
-  var rt = new T.WebGLRenderTarget(W * DPR, H * DPR, { type: T.HalfFloatType, encoding: T.LinearEncoding });
+  /* RT 用 CSS 尺寸创建，随后 composer.setPixelRatio(DPR) 统一把 RT 与所有 pass
+     放大到物理像素。若这里传 W*DPR 又调 setSize(W,H)，composer 内部 _pixelRatio
+     仍是 1，会把 HDR 缓冲压回 CSS 尺寸 —— 2x 超采样等于白做。 */
+  var rt = new T.WebGLRenderTarget(W, H, { type: T.HalfFloatType, encoding: T.LinearEncoding });
   composer = new T.EffectComposer(renderer, rt);
+  if (composer.setPixelRatio) composer.setPixelRatio(DPR);
   /* SSAOPass 自己渲染场景（含 AO 合成），有它就不再加 RenderPass，避免重复渲染 */
   if (T.SSAOPass) {
     ssaoPass = new T.SSAOPass(scene, camera, W * DPR, H * DPR);
@@ -2371,8 +2380,9 @@ function boot(c) {
 }
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = SS;
   W = window.innerWidth; H = window.innerHeight;
+  renderer.setPixelRatio(DPR);
   renderer.setSize(W, H, false);
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   camera.aspect = W / H;
@@ -3509,17 +3519,25 @@ return K;
       /* 水体贴住玻璃内壁：旧版 rW = R-.22 让水体的侧壁在玻璃里再画一层
          "内筒"，平视就是一只双层水槽。留 .05 只为避免与玻璃同半径打架。 */
       var rW = R - .05 * s;
-      /* 水体：开放侧壁，不画实心顶盖。封闭圆柱的顶盖在俯视特写下
-         就是一整块边缘锐利的蓝色圆盘，读作「塑料板」而不是水。 */
-      var bodyMat = new T.MeshPhysicalMaterial({
-        color: 0x63a9c6, roughness: .25, metalness: 0,
-        transparent: true, opacity: .3, side: T.DoubleSide,
-        depthWrite: false, envMapIntensity: .25
+      /* 水体侧壁若用 DoubleSide 半透明圆柱，近侧 + 远侧会与玻璃壁叠成
+         「第二个内筒」，平视读作双层水槽；再叠一条硬水位线就是第二条缸口。
+         现在：侧壁只画远侧(BackSide)，按局部 y 上下渐隐，不留任何硬边；
+         水位由水面圆盘的菲涅尔边缘自然读出，不再单独画 ringLine。 */
+      var bodyMat = new T.ShaderMaterial({
+        transparent: true, depthWrite: false, side: T.BackSide,
+        uniforms: { uColor: { value: new T.Color(0x6fb0d0) }, uH: { value: wh } },
+        vertexShader: 'varying float vY;' +
+          'void main(){ vY = position.y;' +
+          ' gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+        fragmentShader: 'varying float vY; uniform vec3 uColor; uniform float uH;' +
+          'void main(){ float t = clamp(vY / uH + .5, 0., 1.);' +
+          ' float fade = smoothstep(0., .20, t) * (1. - smoothstep(.70, 1., t));' +
+          ' gl_FragColor = vec4(uColor, .24 * fade); }'
       });
       put(g, new T.Mesh(new T.CylinderGeometry(rW, rW, wh, 48, 1, true), bodyMat),
         'water_wall', [0, .3 * s + wh / 2, 0]);
       /* 水面：菲涅尔反射。正俯视几乎透明，掠射角才亮 —— 真实水面不会
-         在俯视下变成一块不透明色板。 */
+         在俯视下变成一块不透明色板。整体压淡，避免平视时又是一条亮带。 */
       var surfMat = new T.ShaderMaterial({
         transparent: true, depthWrite: false, side: T.DoubleSide,
         uniforms: { uColor: { value: new T.Color(0x8fd0e8) }, uR: { value: rW } },
@@ -3533,12 +3551,11 @@ return K;
           /* 盘缘淡出：掠射角下整片水面会压成一条硬直亮线，边缘不虚化
              就读作"水体里插了一块玻璃板"。 */
           ' float rr = length(vP.xz) / uR;' +
-          ' float edge = 1. - smoothstep(.78, 1.0, rr);' +
-          ' gl_FragColor = vec4(uColor, (.06 + .30 * f) * edge); }'
+          ' float edge = 1. - smoothstep(.74, 1.0, rr);' +
+          ' gl_FragColor = vec4(uColor, (.035 + .20 * f) * edge); }'
       });
       var surf = new T.Mesh(new T.CircleGeometry(rW - .02 * s, 48).rotateX(-PI / 2), surfMat);
       put(g, surf, 'water_surface', [0, wy, 0]);
-      ringLine(g, wy, rW - .01 * s, .34);   /* 水位边缘细线，标出液面高度 */
     }
     return g;
   };
@@ -5596,14 +5613,21 @@ return K;
       new T.MeshBasicMaterial({ map: tex, side: T.DoubleSide }));
   }
 
-  /* 橡胶软管：每帧按两端点重建，带自然下垂（端点贴合、不横跨画面成长弧） */
+  /* 橡胶软管：从 U 管右口出发 → 上方拱起 → 在气嘴正上方垂直落下接入。
+     旧版中段下垂到 min(端点)-1.6（低于液面 12），且末段从 x=4.25 斜插到
+     x=6 的气嘴，途中斜穿金属盒左壁，盒顶冒出一块粉色三角。
+     现在：所有控制点 y 不低于「气嘴上方 2.2」与「液面上方 1.5」两者较大值，
+     末三个点 x/z 与气嘴一致，软管垂直进入气嘴，绝不斜穿盒体或横穿水面。 */
   function updateHose(a, b) {
-    var mid = a.clone().add(b).multiplyScalar(.5); mid.y = Math.min(a.y, b.y) - 1.6;
-    var q1 = a.clone().lerp(mid, .5); q1.y = a.y - 1.0;
-    var q2 = b.clone().lerp(mid, .5); q2.y = b.y - 1.0;
+    var hi = Math.max(b.y + 2.2, Y_SURF + 1.5);
+    var z = b.z;
+    var q1 = new T.Vector3(a.x + 1.5, a.y - .3, z);
+    var q2 = new T.Vector3((a.x + b.x) / 2, hi, z);
+    var q3 = new T.Vector3(b.x, hi - .4, z);
+    var q4 = new T.Vector3(b.x, b.y + 1.0, z);
     O.hose.geometry.dispose();
     O.hose.geometry = new T.TubeGeometry(
-      new T.CatmullRomCurve3([a, q1, mid, q2, b]), 20, .28, 8, false);
+      new T.CatmullRomCurve3([a, q1, q2, q3, q4, b]), 36, .26, 8, false);
   }
 
   var scene = {
@@ -5689,16 +5713,19 @@ return K;
       top.rotation.x = -Math.PI / 2; top.position.set(BX, Y_SURF + .01, 0); K.scene().add(top);
       P.ground(BX, 0, 4);
 
-      /* ══ 探头：金属盒 + 橡皮膜（绕膜中心转向，深度不变）+ 吊杆 ══ */
+      /* ══ 探头：金属盒 + 橡皮膜（绕膜中心转向，深度不变）+ 吊杆 ══
+         盒底面原在 y=0，膜与红环也在 y=0，三者共面会 z-fighting；
+         红环外径 .96 又大于盒半径 .9，整圈粉边从盒侧漏出（读作"膜穿模"）。
+         现在盒底抬到 .03，膜/环贴在盒底外侧 -.02，且外径全部收进盒半径内。 */
       var probe = new T.Group(); K.scene().add(probe); O.probe = probe;
       var box = new T.Mesh(new T.CylinderGeometry(.9, .9, 1.0, 20), P.MAT.steelD);
-      box.position.y = .5; probe.add(box);                    // 盒在膜上方
-      var mem = new T.Mesh(new T.CircleGeometry(.85, 20), P.MAT.rubber);
-      mem.rotation.x = Math.PI / 2; probe.add(mem);           // 膜在原点、法线 -y
-      var rim = new T.Mesh(new T.TorusGeometry(.86, .1, 8, 20), P.MAT.red);
-      rim.rotation.x = Math.PI / 2; probe.add(rim);           // 红环标出橡皮膜
+      box.position.y = .53; probe.add(box);                  // 盒占 y∈[.03,1.03]，底面离开膜 .03
+      var mem = new T.Mesh(new T.CircleGeometry(.82, 24), P.MAT.rubber);
+      mem.rotation.x = Math.PI / 2; probe.add(mem);           // 膜留在 group 原点（y=0），深度读数不变
+      var rim = new T.Mesh(new T.TorusGeometry(.76, .075, 8, 24), P.MAT.red);
+      rim.rotation.x = Math.PI / 2; probe.add(rim);           // 外径 .835 < 盒半径 .9
       var nip = new T.Mesh(new T.CylinderGeometry(.22, .22, .5, 10), P.MAT.steel);
-      nip.position.y = 1.15; probe.add(nip);                  // 顶部气嘴（接软管）
+      nip.position.set(.45, 1.15, 0); probe.add(nip);        // 气嘴偏到盒面右侧，避开同轴吊杆
       /* 吊杆：顶端固定、底端随探头深度伸缩 */
       O.rod = new T.Mesh(new T.CylinderGeometry(.12, .12, 1, 8), P.MAT.steel);
       K.scene().add(O.rod);
@@ -5740,11 +5767,13 @@ return K;
       /* 探头：绕膜中心转，膜始终在 y = _probeY（几何深度不随方向变） */
       O.probe.position.set(BX, s._probeY, 0);
       O.probe.rotation.x = s._angle;
-      /* 吊杆 */
-      var topY = 20.4, botY = s._probeY + 1.0, L = Math.max(.1, topY - botY);
+      /* 吊杆底端停在盒顶，软管从气嘴正上方垂直落下；两者不再同轴相撞 */
+      var topY = 20.4, botY = s._probeY + 1.03, L = Math.max(.1, topY - botY);
       O.rod.scale.y = L; O.rod.position.set(BX, (topY + botY) / 2, 0);
-      /* 软管端点随探头（气嘴）更新 */
-      updateHose(new T.Vector3(UXR, 18.4, 0), P.port(O.probe, 0, 1.3, 0));
+      /* 软管接头固定在吊杆旁的世界坐标，不随探头绕 x 轴翻转而扫过水面/盒体。
+         非旋转状态正好落在偏移后的气嘴顶（局部 .45, 1.3）。 */
+      updateHose(new T.Vector3(UXR, 18.4, 0),
+        new T.Vector3(BX + .45, s._probeY + 1.3, 0));
       /* 液体颜色随盐水/水切换 */
       O.water.material.color.setHex(s._salt ? 0x74aecb : 0x9fd0e6);
     }
@@ -5784,7 +5813,9 @@ return K;
           '本按钮"轻压"施加附加压强 ' + P_PRESS + ' Pa，对应 Δh 增加 ' +
           P.model.manometerCm(P_PRESS, RHO_MAN).toFixed(1) + ' cm。</p>' +
           '<p><b>边界假设：</b>软管气密、U 管两臂等截面（液面一升一降各 Δh/2）、液体静止、忽略毛细作用。</p>',
-        apply: function (s) { reset(s); s._probeY = Y_SURF; s._targetY = Y_SURF; },
+        /* 气密性检查在空气中进行：探头抬到液面之上，避免橡皮膜与水面共面。
+           h = Y_SURF − probeY < 0 时模型已 clamp 到 0，读数仍是 0 cm，不受影响。 */
+        apply: function (s) { reset(s); s._probeY = Y_SURF + 2.4; s._targetY = Y_SURF + 2.4; },
         controls: [
           { type: 'btn', label: '① 轻压橡皮膜（看高度差）', onClick: function (s) { s._press = 1; } },
           { type: 'btn', label: '② 松开（回到原处）', onClick: function (s) { s._press = 0; } }
