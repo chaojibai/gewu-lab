@@ -6402,26 +6402,30 @@ return K;
         });
       })();
 
-      /* ═══ 铁架台：底座/立杆退到试管后方，横臂斜伸到夹点 ═══
-         旧版立杆 x=-12.9 正好落在试管长度范围内（-15.2…-7.6），
-         视觉上是一根白杆从管身中间穿过去；横臂在 z+1.2 也从管前横穿。 */
+      /* ═══ 铁架台：立杆退到试管后方，横臂沿 x 平伸、夹座沿 z 短接 ═══
+         试管轴在 z=4.0、半径 1.35（后壁 z=2.65），夹爪环最外缘 z≈2.44。
+         旧版横臂沿 (x,z) 斜插到 z=3.13、夹座到 z=3.38，两者都进了管体，
+         从管轴方向看就是「一根斜杆插进试管圆底」——穿模。
+         现在：横臂 z 恒 = rodZ(.6) 沿 x 平伸到夹点 x，夹座只沿 +z 短接
+         到 2.38（管外），杆—座—爪三段仍接得上，且绝不越过管壁。 */
       K.rbox({ x: R.rodX, y: .35, z: R.rodZ, sx: 4.4, sy: .7, sz: 4.4, r: .1, mat: MAT.dark });
       K.cyl({ x: R.rodX, z: R.rodZ, y0: .7, r: .34, h: 7.2, mat: MAT.steel });
       (function () {
-        var dx = R.clamp[0] - R.rodX, dz = R.tubeCz - R.rodZ;
-        var len = Math.sqrt(dx * dx + dz * dz);
-        var ux = dx / len, uz = dz / len;
-        var ay = R.clamp[1], ry = -Math.atan2(uz, ux);
-        /* 臂端停在夹座外侧（距管轴 2.25）；夹座再伸到夹爪外缘，
-           这样"杆—座—爪"三段接得上，不会像旧版那样杆端悬在管壁外。 */
-        var ex = R.clamp[0] - ux * 2.25, ez = R.tubeCz - uz * 2.25;
-        var arm = new T.Mesh(new T.BoxGeometry(len - 2.25, .34, .46), MAT.steel);
-        arm.position.set((R.rodX + ex) / 2, ay, (R.rodZ + ez) / 2);
-        arm.rotation.y = ry;
+        var ay = R.clamp[1];
+        var armX = R.clamp[0];                       /* 横臂终点 x = 夹点 x */
+        var arm = new T.Mesh(new T.BoxGeometry(armX - R.rodX, .34, .46), MAT.steel);
+        arm.position.set((R.rodX + armX) / 2, ay, R.rodZ);
         K.scene().add(arm);
-        var holder = new T.Mesh(new T.BoxGeometry(.95, .8, .9), MAT.dark);
-        holder.position.set(R.clamp[0] - ux * 1.62, ay, R.tubeCz - uz * 1.62);
-        holder.rotation.y = ry;
+        /* 夹座：沿 +z 从立杆深度伸到夹爪后缘之前。
+           试管后壁 z=2.65，夹爪环最外缘 z≈2.44，这里止于 2.26，留 0.39 余量，
+           从管底方向看杆件全部落在圆形截面之外（距管轴 > 半径）。 */
+        var jawBack = 2.26;
+        var seat = new T.Mesh(new T.BoxGeometry(.62, .5, jawBack - R.rodZ), MAT.steel);
+        seat.position.set(armX, ay, (R.rodZ + jawBack) / 2);
+        K.scene().add(seat);
+        /* 夹头：贴在夹爪后缘外侧的一小块深色夹口，不进管 */
+        var holder = new T.Mesh(new T.BoxGeometry(.95, .8, .30), MAT.dark);
+        holder.position.set(armX, ay, jawBack);
         K.scene().add(holder);
         var boss = new T.Mesh(new T.BoxGeometry(.92, .82, .82), MAT.dark);
         boss.position.set(R.rodX, ay, R.rodZ);

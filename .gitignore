@@ -81,3 +81,11 @@ robot-glb-sim/
 scripts/
 vocational-3d/
 courses/*.html
+
+# 本地内部文档（仅 README.md / LICENSE / NOTICE.md 对外，其余一律不入库）
+INSTALL.md
+LAB-FINDINGS.md
+README.en.md
+SKILL.md
+化学实验合集审查报告.md
+物理实验360度审查报告.md
