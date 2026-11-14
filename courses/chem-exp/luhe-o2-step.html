@@ -6323,15 +6323,15 @@ return K;
            闭口端 (-15.22, 5.53)，管口 (-7.58, 3.17)；倾斜后管底最低点 y≈4.18。
      铁架台：底座在试管后方（z=0.6），立杆 x=-18.2；横臂从后方斜伸到夹点 (-10.06,3.94)，
              两圈夹爪抱住试管，位置在距管口约 1/3 处（不是管中央，也不穿管）。
-     酒精灯：(-14.9, 0, 4) scale .85（灯芯顶 y≈2.65），外焰尖 y≈4.20 正对管底。
+     酒精灯：(-14.9, 0, 4) scale 1.10（灯芯顶 y≈3.43），外焰尖 y≈4.70 舔到管底 4.80。
      导管：管口 → 越过水槽口沿 → 集气瓶口下方 y≈1.06（气体从瓶口升进瓶内）。
      水槽 (10,0,0) r6 h4，水面 y≈2.41；集气瓶倒扣，瓶口 y≈1.17 没在水面下。
      检验/性质：集气瓶必须取出、翻正才可能"伸入瓶内"，放到台面右侧 (18.4, 0, 2.2)。 */
   var RIG = {
-    tubeCx: -11.4, tubeCy: 4.35, tubeCz: 4.0,
+    tubeCx: -11.4, tubeCy: 5.35, tubeCz: 4.0,   // 抬高 1.0 给酒精灯腾空间
     tubeLen: 8, tubeR: 1.35, tilt: .30,
     rodX: -18.2, rodZ: .6,
-    lampX: -14.9, lampZ: 4.0, lampS: .85, flameY: 2.66, flameH: 1.86,
+    lampX: -14.9, lampZ: 4.0, lampS: 1.10, flameY: 3.42, flameH: 1.28,
     troughX: 10, troughZ: 0, water: .72,
     jarX: 10, jarZ: 0, jarS: .95, jarY: 3.545,
     homeX: 18.4, homeZ: 2.2
@@ -6511,13 +6511,13 @@ return K;
       O.rig.rotation.z = -(Math.PI / 2 + R.tilt);   /* 本地 +Y（管口）转向右下 */
       K.scene().add(O.rig);
 
-      /* ═══ 酒精灯（高模）+ 外焰：外焰尖正好舔到管底 y≈4.18 ═══ */
+      /* ═══ 酒精灯（高模）+ 外焰：外焰尖正好舔到管底 y≈4.70（管底 4.80）═══ */
       var lamp = C.create('lamp', { scale: R.lampS });
       C.place(lamp, R.lampX, R.lampZ);
       K.scene().add(lamp);
       O.lamp = lamp;
       O.flame = K.shaderFlame({ x: R.lampX, y: R.flameY, z: R.lampZ,
-        r: .62, h: R.flameH, light: 1.3, dist: 13 });
+        r: .70, h: R.flameH, light: 1.3, dist: 13 });
       /* 火焰在玻璃之后绘制：否则被试管玻璃的半透明"洗"没 */
       O.flame.mesh.traverse(function (m) { m.renderOrder = 5; });
 

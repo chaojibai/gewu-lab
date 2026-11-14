@@ -5569,11 +5569,12 @@ return K;
   var L_BEAM    = D_EMIT - 2.5;              // 入射光束长（扣去笔身半长）
   var L_REF     = 11;                        // 反射光束长（落在 F 板上）
   var L_NORMAL  = 11;                        // 法线虚线长
-  var O_POINT   = new T.Vector3(0, .8, .9);  // 入射点（镜面顶面、纸板前表面）
+  var MIRROR_Y  = 2.0;                          // 镜面高度（转 α 时最低点 0.34，仍高于底座）
+  var O_POINT   = new T.Vector3(0, MIRROR_Y, .9);  // 入射点（镜面顶面、纸板前表面）
   var X_AXIS    = new T.Vector3(1, 0, 0);
   var UP        = new T.Vector3(0, 1, 0);
   var PROT_HOME = new T.Vector3(18, .6, -7); // 量角器备料位（托盘）
-  var PROT_WORK = new T.Vector3(0, .8, .95); // 量角器工作位（屏前）
+  var PROT_WORK = new T.Vector3(0, MIRROR_Y, .95); // 量角器工作位（屏前）
   var STAND_TOP = new T.Vector3(-16, 11.7, 1.6); // 铁架台夹持端
   var CLAMP_LOCAL_X = -1.6;                      // 夹环套在笔身本地 x（笔尾侧）
 
@@ -5659,42 +5660,59 @@ return K;
       K.bench(56, 22);
 
       /* ── 平面镜：水平躺在底座上，可绕 z 轴转 α（法线随之倾斜）── */
-      var base = new T.Mesh(new T.BoxGeometry(31, .3, 11), P.MAT.dark);
-      base.position.set(0, .15, 0); K.scene().add(base);
-      var mirrorPivot = new T.Group(); mirrorPivot.position.set(0, .55, 0);
-      K.scene().add(mirrorPivot); O.mirrorPivot = mirrorPivot;
-      /* 镜面宽 30 覆盖纸板底边（x∈[−14,14]），纸板坐在镜面上不悬空 */
-      var mirror = P.mirror({ w: 30, h: 10 });
-      mirror.children[0].material = P.MAT.dark;      // 背板
-      mirror.rotation.x = -Math.PI / 2;               // 镜面朝上（法线 +y）
-      mirrorPivot.add(mirror); O.mirror = mirror;
-      /* 铝合金边框：四面压在玻璃上缘，让镜面读出「镶框的镜子」而不是蓝胶带 */
+      /* 平面镜：薄镜片（6×10）装在右侧支杆上，绕「过 O 点、平行 z 轴」的轴转 α。
+         右缘 x=0 是转轴，转 α 时该处不动 → O 点始终贴在镜面上；
+         最远端下沉 6·sin10° = 1.04，镜底 1.39 → 0.35，仍在底座(0.30)之上，不插台面。 */
+      var base = new T.Mesh(new T.BoxGeometry(4.4, .3, 11), P.MAT.dark);
+      base.position.set(-1.6, .15, 0); K.scene().add(base);
       var FR = new T.MeshStandardMaterial({ color: 0xb7c0c8, roughness: .3, metalness: .9, envMapIntensity: 1.2 });
-      [[0, -5.05, 31.2, .5], [0, 5.05, 31.2, .5]].forEach(function (p) {
-        var f = new T.Mesh(new T.BoxGeometry(p[2], .22, p[3]), FR);
-        f.position.set(p[0], .74, p[1]); mirrorPivot.add(f);
+      /* 支杆：立在底座上、紧贴镜片右缘（转轴处，不随镜面转动而相互穿插） */
+      var postM = new T.Mesh(new T.CylinderGeometry(.22, .26, MIRROR_Y - .3, 14), FR);
+      postM.position.set(.28, .3 + (MIRROR_Y - .3) / 2, 0); K.scene().add(postM);
+      var mirrorPivot = new T.Group(); mirrorPivot.position.set(0, MIRROR_Y, 0);
+      K.scene().add(mirrorPivot); O.mirrorPivot = mirrorPivot;
+      var MW = 5.5, MD = 10, MT = .16;
+      var mirror = new T.Group();
+      var glassMirror = new T.MeshStandardMaterial({ color: 0x9fc3d8, roughness: .04, metalness: .92, envMapIntensity: 1.8 });
+      var plate = new T.Mesh(new T.BoxGeometry(MW, MT, MD), glassMirror);
+      plate.position.set(-MW / 2, -MT / 2, 0); mirror.add(plate);      // 顶面恰在 pivot 高度
+      var backing = new T.Mesh(new T.BoxGeometry(MW, .10, MD), P.MAT.dark);
+      backing.position.set(-MW / 2, -MT - .05, 0); mirror.add(backing); // 背板
+      /* 包边：四条窄边压在镜片外缘，顶面不高出镜面 */
+      [[0, -1, MW + .3, .12], [0, 1, MW + .3, .12]].forEach(function (q) {
+        var f = new T.Mesh(new T.BoxGeometry(q[2], .12, .18), FR);
+        f.position.set(-MW / 2, .06, q[1] * (MD / 2 + .09)); mirror.add(f);
       });
-      [[-15.35, 0], [15.35, 0]].forEach(function (p) {
-        var f = new T.Mesh(new T.BoxGeometry(.5, .22, 10.6), FR);
-        f.position.set(p[0], .74, p[1]); mirrorPivot.add(f);
+      [[-1, 0], [0, 0]].forEach(function (q, idx) {
+        var f = new T.Mesh(new T.BoxGeometry(.18, .12, MD + .36), FR);
+        f.position.set(idx === 0 ? -MW - .09 : -.09, .06, 0); mirror.add(f);
       });
+      mirrorPivot.add(mirror); O.mirror = mirror;
       P.ground(0, 0, 8);
 
       /* ── 可折转纸板：E 左半固定、F 右半绕竖直铰链折转（有厚度）── */
-      var H = 13, W = 14, TH = .5, ZC = .6;
+      var H = 13, W = 14, TH = .5, ZC = .6, BOARD_Y0 = 2.15;   // 板底高于镜面包边(2.13)
+
       var paper = P.MAT.wood;
       var left = new T.Mesh(new T.BoxGeometry(W, H, TH), paper);
-      left.position.set(-W / 2, .8 + H / 2, ZC); K.scene().add(left); O.left = left;
-      var hinge = new T.Group(); hinge.position.set(0, .8, ZC); K.scene().add(hinge); O.hinge = hinge;
+      left.position.set(-W / 2, BOARD_Y0 + H / 2, ZC); K.scene().add(left); O.left = left;
+      var hinge = new T.Group(); hinge.position.set(0, BOARD_Y0, ZC); K.scene().add(hinge); O.hinge = hinge;
       var right = new T.Mesh(new T.BoxGeometry(W, H, TH), paper);
       right.position.set(W / 2, H / 2, 0); hinge.add(right); O.right = right;
       /* 黄铜铰链：竖直轴 + 三个合页环 */
       var axle = new T.Mesh(new T.CylinderGeometry(.2, .2, H, 10), P.MAT.brass);
-      axle.position.set(0, .8 + H / 2, ZC); K.scene().add(axle);
+      axle.position.set(0, BOARD_Y0 + H / 2, ZC); K.scene().add(axle);
       [3, 6.5, 10].forEach(function (dy) {
         var ring = new T.Mesh(new T.TorusGeometry(.42, .12, 8, 16), P.MAT.brass);
-        ring.rotation.x = Math.PI / 2; ring.position.set(0, .8 + dy, ZC); K.scene().add(ring);
+        ring.rotation.x = Math.PI / 2; ring.position.set(0, BOARD_Y0 + dy, ZC); K.scene().add(ring);
       });
+      /* 支撑：左半板坐在落地实木底座上（右半板是绕铰链折转的活动板，由铰链承托）。
+         底座只占 x∈[-12.6,-6.2]，让开中央镜面（x∈[-6,0]），正前方能看见镜面与光路。 */
+      var footL = new T.Mesh(new T.BoxGeometry(3.0, BOARD_Y0, 1.8), P.MAT.wood);
+      footL.position.set(-10.6, BOARD_Y0 / 2, ZC);
+      K.scene().add(footL);
+      var footB = new T.Mesh(new T.BoxGeometry(4.2, .36, 3.4), P.MAT.wood);
+      footB.position.set(-10.6, .18, ZC); K.scene().add(footB);
       P.ground(0, ZC, 7);
 
       /* ── 激光笔：铁架台 + 横臂支撑，本体随入射角真实摆动 ── */

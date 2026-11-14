@@ -5569,7 +5569,7 @@ return K;
   var IFS = 0.8e-3;          // 检流计满偏电流 A
   var OMEGA = 2.6;           // 往复角频率 rad/s
   var AMP = 1.7;             // 上下振幅（场景单位 cm）
-  var AMPZ = 1.2;            // 平行运动振幅（cm，限制在气隙内不撞极面）
+  var AMPZ = 0.9;            // 平行运动振幅（cm，限幅：端帽不出导轨立柱内侧、整体不出极面）
   var ROD_Y = 8.4;           // 导体棒中心高度（气隙 3~10 内）
   var ROD_X = 6.2;           // 半长（导轨位置）
   var RED = 0xb01818, BLK = 0x222222;
@@ -5724,16 +5724,16 @@ return K;
       /* ── 竖直导轨兼作引出电极：棒上下/前后滑动，外接导线始终不动 ── */
       function rail(x) {
         var g = new T.Group(); g.position.set(x, 0, 0); K.scene().add(g);
-        var foot = new T.Mesh(new T.BoxGeometry(3.0, .7, 4.0), P.MAT.steelD);
+        var foot = new T.Mesh(new T.BoxGeometry(3.0, .7, 5.0), P.MAT.steelD);
         foot.position.y = .35; g.add(foot);
         /* 两根细钢立柱 + 顶梁 + 中间滑槽：旧版是一整块实心灰方柱，像墓碑 */
         [-1, 1].forEach(function (sz) {
           var p = new T.Mesh(new T.CylinderGeometry(.28, .32, 10.6, 14), P.MAT.steel);
-          p.position.set(0, 6.0, sz * 1.15); g.add(p);
+          p.position.set(0, 6.0, sz * 2.0); g.add(p);
         });
         var groove = new T.Mesh(new T.BoxGeometry(.26, 9.6, .5), P.MAT.dark);
         groove.position.set(0, 6.3, 0); g.add(groove);
-        var top = new T.Mesh(new T.BoxGeometry(1.1, .5, 3.0), P.MAT.steelD);
+        var top = new T.Mesh(new T.BoxGeometry(1.1, .5, 4.8), P.MAT.steelD);
         top.position.y = 11.5; g.add(top);
         var post = new T.Mesh(new T.CylinderGeometry(.42, .42, 1.1, 14), P.MAT.brass.clone());
         post.rotation.x = Math.PI / 2; post.position.set(0, 1.2, 0); g.add(post);
@@ -5797,7 +5797,7 @@ return K;
       O.wires.visible = s._place > .96;
       O.sw.userData.setClosed(s.closed);
 
-      /* 棒的真实运动：切割沿 y、沿磁感线沿 z（后者幅度受限不撞极面） */
+      /* 棒的真实运动：切割沿 y、沿磁感线沿 z（AMPZ 限幅：端帽不出立柱内侧 ±1.68、不出极面 ±2.2） */
       var y = ROD_Y, z = 0;
       if (q.moving) y = ROD_Y + AMP * Math.sin(OMEGA * s._t);
       if (q.parallel) z = AMPZ * Math.sin(OMEGA * s._t);
