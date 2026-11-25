@@ -63,6 +63,14 @@ h1{font-size:19px;line-height:1.4;margin:0 0 8px;font-weight:600;color:#16232f}
 .ro label{display:block;font-size:10.5px;color:var(--dim);margin-bottom:1px;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .ro b{font:600 14px/1.3 ui-monospace,Consolas,monospace;font-variant-numeric:tabular-nums;color:#1d2a38}
+/* 诚实标注：读数来自示意模型，不是实测，必须让用户看见这一点 */
+.ro-note{grid-column:1/-1;font-size:10.5px;line-height:1.45;color:#7d8794;
+  padding:1px 2px 0;margin-top:-2px}
+.model-badge{position:fixed;right:20px;bottom:20px;z-index:6;pointer-events:none;
+  font-size:11px;font-weight:600;letter-spacing:.5px;color:#5d6b7a;
+  background:rgba(255,255,255,.82);padding:3px 9px 4px;border-radius:99px;
+  box-shadow:0 1px 5px rgba(20,45,70,.14),0 0 0 1px rgba(120,150,180,.22);
+  backdrop-filter:blur(6px)}
 .ctl{margin:0 0 6px}
 .ctlhead{display:flex;justify-content:space-between;font-size:12.5px;color:var(--dim)}
 .ctlhead b{color:var(--ink);font-family:ui-monospace,Consolas,monospace}
@@ -70,6 +78,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:5px 0 8px}
 button.act{display:block;width:100%;margin:5px 0;text-align:center;background:rgba(31,165,103,.10);
   border-color:rgba(31,165,103,.35);color:#14663f}
 button.act:hover{background:rgba(31,165,103,.16)}
+button.act.on{background:rgba(31,165,103,.26);border-color:#1fa567;color:#0c5836;font-weight:600}
 .qopt{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;color:#2a3846}
 aside.quiz .ro{display:none}
 .qopt.ok{border-color:#1fa567;background:rgba(31,165,103,.12);color:#0e6b40}
@@ -78,7 +87,45 @@ aside.quiz .ro{display:none}
 .fb.ok{color:#0e7a4b}
 .fb.no{color:#b03a48}
 .hint{position:fixed;left:20px;bottom:20px;font-size:11.5px;color:#8a97a6;z-index:3;pointer-events:none}
-@media(max-width:1100px){
+.mHandle{display:none}
+@media(max-width:700px){
+  /* 手机：步骤面板做成底部抽屉，默认只露一条把手+标题，3D 主体不再被盖一半 */
+  aside{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:none;
+    height:auto;overflow:visible;padding:0 14px 10px}
+  .mHandle{display:block;width:56px;height:18px;margin:6px auto 4px;padding:0;
+    border:0;background:transparent;box-shadow:none;pointer-events:auto}
+  .mHandle span{display:block;width:56px;height:4px;border-radius:99px;background:rgba(30,60,110,.28)}
+  .pnav{margin-bottom:8px}
+  .pnav>button{min-width:0;padding:5px 9px;font-size:12px}
+  .dots{gap:5px}
+  .dot{width:6px;height:6px;min-width:6px}
+  .ro{display:flex;overflow-x:auto;gap:6px;margin-bottom:8px;padding-bottom:3px;
+    scrollbar-width:none;flex:0 0 auto}
+  .ro::-webkit-scrollbar{display:none}
+  .ro>div{flex:0 0 108px;min-width:108px}
+  .ro label{font-size:10px}
+  .ro b{font-size:13px;white-space:normal;line-height:1.25}
+  .ro-note{flex:0 0 auto;min-width:100%}
+  .pstep{display:none}
+  .ask{font-size:12.5px;padding:6px 9px;margin-bottom:7px}
+  h1{font-size:16px;margin-bottom:5px}
+  .body{font-size:12.5px;min-height:0;max-height:0;padding:0;opacity:0;
+    -webkit-mask-image:none;mask-image:none;transition:max-height .2s,opacity .2s}
+  #sCtrls{display:none}
+  aside.expanded{max-height:min(74vh,540px);overflow:auto;padding-bottom:14px}
+  aside.expanded .body{max-height:30vh;opacity:1;padding-right:6px;padding-bottom:10px;
+    -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent);
+    mask-image:linear-gradient(to bottom,#000 calc(100% - 18px),transparent)}
+  aside.expanded #sCtrls{display:block}
+  button.act{padding:6px 12px;margin:4px 0}
+  .hint{display:none}
+  .model-badge{right:10px;bottom:auto;top:60px;font-size:10px;padding:2px 7px 3px}
+  .top{padding:9px 12px;gap:8px}
+  .chip{font-size:11px;padding:2px 8px;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #resetView{padding:5px 9px;font-size:12px}
+  .top a{font-size:12px;white-space:nowrap}
+}
+@media(min-width:701px) and (max-width:1100px){
   aside{left:12px;right:12px;top:auto;bottom:12px;width:auto;max-height:min(58vh,420px);overflow:auto}
   aside.quiz{max-height:min(82vh,560px)}
   .qopt{margin:4px 0;padding:7px 11px;font-size:13px}
@@ -99,6 +146,43 @@ aside.quiz .ro{display:none}
   white-space:nowrap;will-change:transform;transition:opacity .28s linear}
 .lab-label.on{color:#0b5c93;font-weight:600;background:rgba(255,255,255,.82);
   padding:1px 7px 2px;border-radius:99px;box-shadow:0 2px 8px rgba(20,60,100,.14)}
+/* 等高线高程注记：地形图规范里数字顺着等高线排、字号小、不带大底框。
+   这里给一点点白底 + 加粗等宽数字，保证压在深绿山体上也一眼读出。 */
+.lab-label.elev{color:#231203;font-size:13px;font-weight:800;letter-spacing:.4px;
+  font-variant-numeric:tabular-nums;
+  background:rgba(255,255,255,.72);padding:0 3px 1px;border-radius:3px;
+  text-shadow:0 0 2px #fff,0 1px 1px rgba(255,255,255,.9)}
+/* 地形单元名（青藏高原、塔里木盆地…）：字要小、不要底框，
+   否则十几个名字会把地形糊住；靠白描边保证压在深色山体上也读得出。 */
+.lab-label.feat{color:#2b3a1c;font-size:10.5px;font-weight:600;letter-spacing:.1px;
+  text-shadow:0 0 3px rgba(255,255,255,.98),0 0 3px rgba(255,255,255,.9),
+    0 1px 2px rgba(255,255,255,.95)}
+/* 气压标注（高压/低压）：季风因果链的中间一环，要显眼 */
+.lab-label.press{color:#123a5e;font-size:11.5px;font-weight:700;
+  background:rgba(255,255,255,.86);padding:1px 7px 2px;border-radius:99px;
+  box-shadow:0 1px 5px rgba(20,60,100,.2)}
+/* 季风区界线上的山脉名 / 区域名：橙红字压在浅黄绿底上，
+   靠白描边保证在草地色和海洋色上都读得清 */
+.lab-label.zone{color:#8a2f0a;font-size:10.5px;font-weight:700;letter-spacing:.2px;
+  text-shadow:0 0 3px rgba(255,255,255,.98),0 0 3px rgba(255,255,255,.92),
+    0 1px 2px rgba(255,255,255,.95)}
+/* 河流名：蓝字压在水带和绿色平原上，要和白描边分开才不糊 */
+.lab-label.river{color:#0d4f86;font-size:10.5px;font-weight:700;letter-spacing:.4px;
+  text-shadow:0 0 3px rgba(255,255,255,.98),0 0 3px rgba(255,255,255,.9),
+    0 1px 2px rgba(255,255,255,.92)}
+/* 三级阶梯名：这是本课的主线，要压过一地细部地名。
+   给白底衬 + 投影，抬到最高点上方也不会被地形色吃掉。 */
+.lab-label.tier{color:#1a3350;font-size:12.5px;font-weight:800;letter-spacing:.6px;
+  background:rgba(255,255,255,.90);padding:2px 9px 3px;border-radius:99px;
+  box-shadow:0 1px 6px rgba(20,50,80,.22),0 0 0 1px rgba(120,160,200,.25)}
+/* 碰撞造山剖面标注：地层色偏暗，白底衬 + 深蓝字才读得清 */
+.lab-label.coll{color:#12304c;font-size:11.5px;font-weight:700;letter-spacing:.4px;
+  background:rgba(255,255,255,.92);padding:1px 8px 2px;border-radius:99px;
+  box-shadow:0 1px 5px rgba(10,30,50,.25),0 0 0 1px rgba(120,160,200,.3)}
+/* 深底场景（太空 / 夜景）：白字压在深色上，反白底会把星空抠出一个洞 */
+body.dark .lab-label{color:#dfeaf7;text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 8px rgba(0,0,0,.8)}
+body.dark .lab-label.on{color:#eaf4ff;background:rgba(18,30,46,.78);
+  box-shadow:0 2px 10px rgba(0,0,0,.45)}
 .curve{width:100%;height:auto;display:block;margin:0 0 10px;border-radius:10px;
   border:1px solid rgba(30,60,110,.12);background:#fbfcfe}
 
@@ -150,6 +234,7 @@ button:hover.withicon svg{opacity:.9}
 </div>
 
 <aside>
+  <button class="mHandle" id="mHandle" aria-label="展开或收起步骤面板" aria-expanded="false"><span></span></button>
   <div class="pnav">
     <button id="prev" class="withicon"><svg width="13" height="13"><use href="#i-left"/></svg>上一步</button>
     <div class="dots" id="dots"></div>
@@ -303,6 +388,7 @@ var CAM0 = Object.assign({}, cam);
 var camTween = null;         // 逐步机位补间（步骤可写 s.cam，用户一动就交还控制权）
 var curStepCam = null;       // 当前步骤声明的机位，"重置视角"回到这里
 var cfg = null, state = {}, stepIdx = 0, lastT = 0, NOW = 0;
+var KEYLIGHT = null;
 var quizPick = null, quizData = null;
 var world = null;            // K.group：课件对象根节点
 var flames = [];             // 自动摇曳的火焰
@@ -572,15 +658,20 @@ function init3d() {
   /* 光：高调明亮实验室 */
   var hemi = new T.HemisphereLight(0xffffff, 0xd6dce3, .55);
   scene.add(hemi);
-  var key = new T.DirectionalLight(0xfff2df, 1.55);
-  key.position.set(35, 70, 40);
-  key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
-  key.shadow.camera.left = -70; key.shadow.camera.right = 70;
-  key.shadow.camera.top = 70; key.shadow.camera.bottom = -70;
-  key.shadow.camera.far = 240;
-  key.shadow.bias = -.0005;
-  scene.add(key);
+  KEYLIGHT = new T.DirectionalLight(0xfff2df, 1.55);
+  KEYLIGHT.position.set(35, 70, 40);
+  KEYLIGHT.castShadow = true;
+  KEYLIGHT.shadow.mapSize.set(2048, 2048);
+  /* 阴影相机范围必须盖住整个场景。原来固定 ±70，而地形课场景横跨 320 单位，
+     远处的顶点落在阴影贴图之外 → 深度比较失效 → 屏幕上出现规则的竖条纹
+     （不是地形数据问题，也不是颜色问题）。这里留一个可调接口，
+     课件用 cfg.shadowSpan 声明自己多大；默认 70 保持其它课不变。 */
+  KEYLIGHT.shadow.camera.left = -70; KEYLIGHT.shadow.camera.right = 70;
+  KEYLIGHT.shadow.camera.top = 70; KEYLIGHT.shadow.camera.bottom = -70;
+  KEYLIGHT.shadow.camera.far = 240;
+  KEYLIGHT.shadow.bias = -.0005;
+  KEYLIGHT.shadow.normalBias = .02;
+  scene.add(KEYLIGHT);
   var fill = new T.DirectionalLight(0xdfe8ff, .45);
   fill.position.set(-45, 30, -35);
   scene.add(fill);
@@ -2323,6 +2414,17 @@ function boot(c) {
     Object.assign(cam, c.cam);
     CAM0 = Object.assign({}, cam);
   }
+  /* 大场景课件（如中国地形）要把阴影相机撑到覆盖全域，
+     否则远处顶点落在阴影贴图外，出现条纹状伪影。 */
+  if (c.shadowSpan && KEYLIGHT) {
+    var ss = c.shadowSpan;
+    KEYLIGHT.shadow.camera.left = -ss;
+    KEYLIGHT.shadow.camera.right = ss;
+    KEYLIGHT.shadow.camera.top = ss;
+    KEYLIGHT.shadow.camera.bottom = -ss;
+    KEYLIGHT.shadow.camera.far = ss * 3.4;
+    KEYLIGHT.shadow.camera.updateProjectionMatrix();
+  }
   buildMaterials();
   init3d();
   document.title = c.title + ' · 格物实验室';
@@ -2347,6 +2449,33 @@ function boot(c) {
   ui.ro.innerHTML = (c.reads || []).map(function (r) {
     return '<div><label>' + r[1] + '</label><b data-k="' + r[0] + '">—</b></div>';
   }).join('');
+
+  /* ── 诚实标注 ──────────────────────────────────────────
+     课件里的高度、距离、日期大多是解析公式算出来的示意值，
+     不是实测数据。用"测量仪表"的样子（第一级 4.2 km、总高差 4080 m）
+     呈现会让学生以为这是真实测量结果——这比画得抽象更糟。
+     规则：
+       1. cfg.model !== 'measured' 时，读数区下方挂一行免责说明；
+       2. 各课可以给 reads 第三项传 '~' 表示"估算值"，
+          渲染时自动加 ≈ 前缀；
+       3. 面板顶部显示"示意模型"徽标。
+     不改变任何数值本身，只改变它的呈现口径。 */
+  var honest = c.honest !== false && c.model !== 'measured';
+  var roWrap = ui.ro.parentNode;
+  if (honest && roWrap && !roWrap.querySelector('.ro-note')) {
+    var note = document.createElement('div');
+    note.className = 'ro-note';
+    note.textContent = c.honestNote ||
+      '以上数值由示意模型算出，用于比较高低、远近、快慢，不是实测数据。';
+    roWrap.appendChild(note);
+  }
+  if (honest && !document.querySelector('.model-badge')) {
+    var badge = document.createElement('div');
+    badge.className = 'model-badge';
+    badge.textContent = c.modelBadge || '示意模型';
+    badge.title = c.honestNote || '画面与数值为示意，非实测数据';
+    document.body.appendChild(badge);
+  }
 
   ui.body.addEventListener('click', function (e) {
     var opt = e.target.closest('[data-opt]');
@@ -2411,9 +2540,17 @@ function beginStepTweens(snap) {
   window.__stepTweens = 0;
   if (!snap) return;
   var _dbg = { snap: snap.size, seen: 0, miss: 0, moved: 0 };
+  /* noStepTween：由 update 每帧连续驱动的对象（如倒水抬杯、液面）不进步骤补间。
+     否则补间按住旧位 0.55s，结束后 update 又把它放到当前目标位，出现一次瞬移。 */
+  function noTween(o) {
+    var n = o;
+    while (n) { if (n.userData && n.userData.noStepTween) return true; n = n.parent; }
+    return false;
+  }
   scene.traverse(function (o) {
     if (o === scene || o.isLight || o.isCamera || o.isSprite) return;
     if (BGREF.roomDecor && BGREF.roomDecor.indexOf(o) >= 0) return;
+    if (noTween(o)) return;
     _dbg.seen++;
     var b = snap.get(o.uuid);
     if (!b) { _dbg.miss++; return; }
@@ -2561,7 +2698,10 @@ function renderControls(s) {
       html += '<div class="ctl"><div class="ctlhead"><span>' + c.label + '</span><b data-cv="' + i + '">' + state[c.key] + '</b></div>' +
         '<input type="range" data-ci="' + i + '" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '" value="' + state[c.key] + '"></div>';
     } else {
-      html += '<button class="act" data-ci="' + i + '">' + c.label + '</button>';
+      /* 记住最近点击的按钮：renderPanel 会重建 DOM，不给标记的话
+         用户点完看不到任何反馈，会以为按钮失灵。 */
+      var on = (state.__lastBtn === (stepIdx + ':' + i)) ? ' on' : '';
+      html += '<button class="act' + on + '" data-ci="' + i + '">' + c.label + '</button>';
     }
   });
   ui.ctrls.innerHTML = html;
@@ -2577,6 +2717,7 @@ function renderControls(s) {
   ui.ctrls.querySelectorAll('button.act').forEach(function (el) {
     el.onclick = function () {
       var c = s.controls[+el.getAttribute('data-ci')];
+      state.__lastBtn = stepIdx + ':' + el.getAttribute('data-ci');
       if (c.onClick) c.onClick(state);
       renderPanel();
     };
@@ -2584,11 +2725,36 @@ function renderControls(s) {
 }
 
 function updateReads() {
+  /* 滑块与 state 同步：代码里改 state（自动演示、按钮、补间）时，
+     滑块位置和数值标签也要跟着走，否则"山在长、读数还是 0"。
+     只在值真的变了才写 DOM，避免每帧都触发重排。 */
+  if (ui.ctrls && cfg.steps && cfg.steps[stepIdx] && cfg.steps[stepIdx].controls) {
+    var ctl = cfg.steps[stepIdx].controls;
+    ui.ctrls.querySelectorAll('input[type=range]').forEach(function (el) {
+      var c = ctl[+el.getAttribute('data-ci')];
+      if (!c || !c.key) return;
+      var v = state[c.key];
+      if (v === undefined || v === null) return;
+      if (Math.abs(parseFloat(el.value) - v) > 1e-6) el.value = v;
+      var lab = ui.ctrls.querySelector('[data-cv="' + el.getAttribute('data-ci') + '"]');
+      if (lab) {
+        var txt = (Math.round(v * 100) / 100) + '';
+        if (lab.textContent !== txt) lab.textContent = txt;
+      }
+    });
+  }
   if (!cfg.values) return;
   var v = cfg.values(state);
+  /* reads 第三项为 '~' 的字段是模型估算值，统一加 ≈ 前缀。
+     这样"总高差 4080 m"变成"总高差 ≈4080 m"，学生一眼知道是算出来的。 */
+  var approx = {};
+  (cfg.reads || []).forEach(function (r) { if (r[2] === '~') approx[r[0]] = true; });
   ui.ro.querySelectorAll('b[data-k]').forEach(function (b) {
     var k = b.getAttribute('data-k');
-    if (v[k] !== undefined) b.textContent = v[k];
+    if (v[k] === undefined) return;
+    var txt = v[k] + '';
+    if (approx[k] && txt.charAt(0) !== '≈' && txt !== '—') txt = '≈' + txt;
+    if (b.textContent !== txt) b.textContent = txt;
   });
 }
 
@@ -5920,25 +6086,19 @@ return K;
 })();
 
 </script>
+<script>
+/* 手机适配：步骤抽屉展开/收起。桌面端 mHandle 隐藏，不受影响。 */
+(function () {
+  var a = document.querySelector('aside'), h = document.getElementById('mHandle');
+  if (!a || !h) return;
+  h.addEventListener('click', function () {
+    var open = a.classList.toggle('expanded');
+    h.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (window.__labDebug && window.__labDebug.resize) window.__labDebug.resize();
+  });
+})();
+</script>
 <!-- 本课件使用 three.js（MIT License, © 2010-2023 three.js authors）渲染；
      场景构建、材质参数、仿真模型与文案均为本项目独立实现。 -->
-<!-- 格物实验室·下载按钮(release_polish) -->
-<style>
-.gw-dl{position:fixed;right:16px;bottom:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
-  padding:10px 16px;border-radius:11px;border:1px solid rgba(255,255,255,.22);
-  background:linear-gradient(135deg,#0e7490,#1b9c9c);color:#fff;
-  font:600 13.5px/1 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-  box-shadow:0 10px 30px rgba(8,40,55,.35);text-decoration:none;cursor:pointer;transition:.18s}
-.gw-dl:hover{transform:translateY(-2px);box-shadow:0 14px 36px rgba(8,40,55,.45)}
-.gw-dl svg{width:16px;height:16px}
-@media(max-width:560px){.gw-dl{right:12px;bottom:12px;padding:9px 13px;font-size:12.5px}}
-</style>
-<a class="gw-dl" id="gwDl" download>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
-  <span>下载本课件</span>
-</a>
-<script>
-(function(){var a=document.getElementById('gwDl');if(a){a.href=location.href;a.download=(document.title||'courseware')+'.html';}})();
-</script>
 </body>
 </html>
