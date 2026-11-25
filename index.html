@@ -261,7 +261,7 @@ footer .fbrand span{display:block;font-size:11.5px;font-weight:400;letter-spacin
       <a href="#about">关于</a>
     </nav>
     <div class="toolbtns">
-      <span class="count-pill"><b id="totalNum">36</b> 门课件 · 断网可用</span>
+      <span class="count-pill"><b id="totalNum">39</b> 门课件 · 断网可用</span>
       <button class="iconbtn" id="themeBtn" title="切换深浅色" aria-label="切换深浅色">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
@@ -284,10 +284,10 @@ footer .fbrand span{display:block;font-size:11.5px;font-weight:400;letter-spacin
     <div>
       <div class="eyebrow"><i></i>鲁教版 · 初中化学 + 物理 · 3D 交互课件</div>
       <h1>把课本里的实验，<br>搬进<em>可动手的实验室</em></h1>
-      <p class="lede">化学 15 门、物理 21 门 —— 共 <b>36 门</b>单文件 three.js 课件，按学科与教材册次编排。每一门都能旋转观察、分步演示、断网直接打开；读数由模型计算，操作都有对应的物体与运动。</p>
+      <p class="lede">化学 16 门、物理 23 门 —— 共 <b>39 门</b>单文件 three.js 课件，按学科与教材册次编排。每一门都能旋转观察、分步演示、断网直接打开；读数由模型计算，操作都有对应的物体与运动。</p>
       <div class="hero-meta">
-        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg>化学 15 门 · 三册全覆盖</div>
-        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14M2 19h20M8 8h8M8 12h5"/></svg>物理 21 门 · 学生必做实验</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg>化学 16 门 · 三册全覆盖</div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14M2 19h20M8 8h8M8 12h5"/></svg>物理 23 门 · 学生必做实验</div>
         <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2a10 10 0 1 0 10 10M12 6v6l4 2"/></svg>单文件 · 离线可用</div>
       </div>
     </div>
@@ -325,12 +325,12 @@ footer .fbrand span{display:block;font-size:11.5px;font-weight:400;letter-spacin
         <p style="margin-top:14px">以真实器材、真实尺度与真实读数搭建的初中化学、物理交互课件。所有页面均为单文件 HTML，不依赖网络、不依赖服务器，双击即可打开。</p>
       </div>
       <div>
-        <h4>化学 · 15 门</h4>
+        <h4>化学 · 16 门</h4>
         <p>八年级全一册（五四制 2024 秋）、九年级上册 / 下册（六三制 2024 / 2025 版）。同一课题在两套学制里编号不同，卡片一律用教材的学生实验编号。</p>
         <p>涵盖课标 8 个必做实验与教材单元探究，读数由模型计算，操作都有对应物体与运动。</p>
       </div>
       <div>
-        <h4>物理 · 21 门</h4>
+        <h4>物理 · 23 门</h4>
         <p>鲁教版（五四制）初中物理学生必做实验：八上 7 个、八下 5 个、九上 7 个、九下 2 个，含测量类与探究类。</p>
         <p>点击卡片在本页沉浸预览，也可用右上角按钮在新窗口打开；课件内可拖拽旋转、滚轮缩放、分步演示。</p>
       </div>
@@ -374,7 +374,7 @@ const BOOKS = [
     "system": "五四制 · 2024 秋",
     "color": "#0f766e",
     "soft": "#e5f4f0",
-    "desc": "化学入门与学生必做实验的主阵地：从基本操作、水的组成，到氧气与二氧化碳的制取、燃烧条件，五个实验按教材顺序排开。",
+    "desc": "化学入门与学生必做实验的主阵地：从基本操作、水的组成，到氧气与二氧化碳的制取、燃烧条件，五个实验按教材顺序排开；另收录「自制简易净水器」跨学科实践。",
     "courses": [
       {
         "slug": "luhe-skill-step",
@@ -455,6 +455,23 @@ const BOOKS = [
         "question": "白磷和红磷都摆在铜片上，为什么只有白磷烧起来？",
         "href": "./courses/chem-exp/luhe-burn-step.html",
         "cover": "./courses/chem-exp/thumbs/luhe-burn-step.jpg",
+        "bid": "b8",
+        "book": "八年级全一册",
+        "color": "#0f766e",
+        "soft": "#e5f4f0",
+        "subject": "chem"
+      },
+      {
+        "slug": "waterfilter-step",
+        "chapter": "跨学科实践活动 1 · 自制简易净水器",
+        "tag": "跨学科 1",
+        "kind": "跨学科实践",
+        "desc": "卵石 石英砂 活性炭 蓬松棉 过滤吸附 澄清≠可饮用",
+        "title": "自制简易净水器",
+        "steps": 8,
+        "question": "浑水变清了，为什么还不能直接喝？",
+        "href": "./courses/chem-exp/waterfilter-step.html",
+        "cover": "./courses/chem-exp/thumbs/waterfilter-step.jpg",
         "bid": "b8",
         "book": "八年级全一册",
         "color": "#0f766e",
@@ -793,6 +810,24 @@ const BOOKS = [
         "draft": "./courses/physics-exp/convex-lens.html",
         "color": "#1e6fb0",
         "soft": "#e6f0f8"
+      },
+      {
+        "slug": "eye-glasses",
+        "chapter": "第三章 光现象 · 跨学科实践",
+        "tag": "拓展 1 · 拓展课件",
+        "kind": "",
+        "desc": " · 八上 · 第三章 光现象 · 跨学科实践",
+        "title": "眼睛与眼镜",
+        "steps": null,
+        "question": "器材：眼球剖面、凹/凸透镜、光路、视网膜",
+        "href": "./courses/physics-exp/eye-glasses-step.html",
+        "cover": "./courses/physics-exp/thumbs/eye-glasses-step.jpg",
+        "bid": "p8",
+        "book": "八上",
+        "subject": "phys",
+        "draft": null,
+        "color": "#1e6fb0",
+        "soft": "#e6f0f8"
       }
     ]
   },
@@ -1033,6 +1068,24 @@ const BOOKS = [
         "draft": "./courses/physics-exp/ohm.html",
         "color": "#6a5acd",
         "soft": "#ece8f7"
+      },
+      {
+        "slug": "dimmer-lamp",
+        "chapter": "第十五章 欧姆定律 · 跨学科实践",
+        "tag": "拓展 2 · 拓展课件",
+        "kind": "",
+        "desc": " · 九上 · 第十五章 欧姆定律 · 跨学科实践",
+        "title": "制作调光台灯",
+        "steps": null,
+        "question": "器材：电源、开关、滑动变阻器、小灯泡、电表",
+        "href": "./courses/physics-exp/dimmer-lamp-step.html",
+        "cover": "./courses/physics-exp/thumbs/dimmer-lamp-step.jpg",
+        "bid": "p9",
+        "book": "九上",
+        "subject": "phys",
+        "draft": null,
+        "color": "#6a5acd",
+        "soft": "#ece8f7"
       }
     ]
   },
@@ -1092,9 +1145,9 @@ let state = { f:'all', q:'' };
 
 /* 统计卡 */
 const _statData = [
-  ['36','课件总数','化学 15 · 物理 21'],
-  ['15','化学实验','八全 / 九上 / 九下'],
-  ['21','物理实验','八上 / 八下 / 九上 / 九下'],
+  ['39','课件总数','化学 16 · 物理 23'],
+  ['16','化学实验','八全 / 九上 / 九下'],
+  ['23','物理实验','八上 / 八下 / 九上 / 九下'],
   ['100%','单文件离线','three.js r147 · 断网可用']
 ];
 $('#stats').innerHTML = _statData.map(s =>
