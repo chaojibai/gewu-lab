@@ -1261,11 +1261,18 @@ K.testTube = function (o) {
     var a = (i / 6) * Math.PI / 2;
     pts.push(new T.Vector2(r * Math.sin(a), r * (1 - Math.cos(a))));
   }
-  pts.push(new T.Vector2(r, h));
+  /* 卷口收边：直接做进管体轮廓——最后三点向外微翻形成加厚的唇口。
+     不用独立珠环：珠环总比管体大一圈，正面看像口沿"多出一块"（2026-11-27 踩坑） */
+  pts.push(new T.Vector2(r, h - .20));
+  pts.push(new T.Vector2(r * 1.018, h - .10));
+  pts.push(new T.Vector2(r * 1.035, h - .02));
+  pts.push(new T.Vector2(r * 1.03, h));
   var geo = new T.LatheGeometry(pts, 32);
   var m = new T.Mesh(geo, M.glass);
   m.castShadow = false;
-  addFresnel(m, 1.02);
+  /* 开口试管不要 BackSide 光晕壳：透过玻璃会看到壳的内壁，在口部读成一条暗带。
+     只留菲涅尔轮廓层，玻璃边缘依然可读 */
+  addFresnel(m, 1.02, true);
   var d = V(dir[0], dir[1], dir[2]).normalize();
   var q = new T.Quaternion().setFromUnitVectors(V(0, 1, 0), d);
   m.applyQuaternion(q);
@@ -1288,9 +1295,7 @@ K.testTube = function (o) {
   }
   world.add(g);
   return g;
-};
-
-/* 烧杯 */
+};/* 烧杯 */
 K.beaker = function (o) {
   o = o || {};
   var r = o.r || 5, h = o.h || 10, x = o.x || 0, z = o.z || 0;
