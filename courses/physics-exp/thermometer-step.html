@@ -5784,73 +5784,15 @@ return K;
 
   /* 真实酒精灯：玻璃灯体 + 灯芯管 + 棉芯 + 旁置金属灯帽。
      灯芯顶端 ≈ y=5，与现有 K.shaderFlame 的火焰底对齐；玻璃靠轮廓线定形。 */
+    /* 酒精灯：ChemKit 高模（skill 冻结样式：扁球灯体+灯芯座+旁置灯帽）。
+     原手搓灯体已移除，避免两套灯叠在一起；保持返回 Group 与调用方坐标契约 */
   function makeAlcoholLamp(o) {
     o = o || {};
-    var g = new T.Group();
-    var bodyH = 4.2, R = 2.2;
-    var glass = new T.MeshPhysicalMaterial({ color: 0xeef6fb, roughness: .06, metalness: 0,
-      transparent: true, opacity: .34, side: T.DoubleSide, depthWrite: false,
-      clearcoat: .8, clearcoatRoughness: .08, envMapIntensity: 1.4 });
-    var prof = [], i, N = 20;
-    for (i = 0; i <= N; i++) {
-      var t = i / N;
-      var rr = R * (.34 + .66 * Math.sin(Math.PI * Math.pow(t, .8)));
-      if (t > .82) rr *= 1 - (t - .82) * 2.2;
-      prof.push(new T.Vector2(Math.max(.12, rr), t * bodyH));
-    }
-    var body = new T.Mesh(new T.LatheGeometry(prof, 40), glass);
-    body.castShadow = false; body.renderOrder = 3; g.add(body);
-    var alc = new T.Mesh(new T.CylinderGeometry(R * .8, R * .76, bodyH * .5, 32),
-        new T.MeshStandardMaterial({ color: 0xd9e2c8, roughness: .2,
-          transparent: true, opacity: .55, depthWrite: false }));
-    alc.position.y = bodyH * .3; g.add(alc);
-    /* 酒精液面线：没有它，透明灯体在浅墙前读成一个白玻璃球 */
-    var alcRim = new T.Mesh(new T.TorusGeometry(R * .79, .05, 6, 30),
-      new T.MeshBasicMaterial({ color: 0x7fa8c0 }));
-    alcRim.rotation.x = Math.PI / 2; alcRim.position.y = bodyH * .55; g.add(alcRim);
-    var collar = new T.Mesh(new T.CylinderGeometry(.55, .62, .8, 20),
-      new T.MeshStandardMaterial({ color: 0x9aa3ad, metalness: .85, roughness: .3, envMapIntensity: 1.1 }));
-    collar.position.y = bodyH + .3; g.add(collar);
-    var wick = new T.Mesh(new T.CylinderGeometry(.2, .22, .55, 12),
-      new T.MeshStandardMaterial({ color: 0x2b231c, roughness: .9 }));
-    wick.position.y = bodyH + .65; g.add(wick);
-    /* 玻璃轮廓：口沿环 + 底环 + 两条母线 */
-    var lineCol = 0x52738f;
-    function ring(y, rr, op) {
-      var pts = [], k;
-      for (k = 0; k <= 48; k++) {
-        var a = k / 48 * Math.PI * 2;
-        pts.push(new T.Vector3(Math.cos(a) * rr, y, Math.sin(a) * rr));
-      }
-      g.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts.slice(0, 48)),
-        new T.LineBasicMaterial({ color: lineCol, transparent: true, opacity: op })));
-    }
-    ring(.06, R * .36, .55);
-    ring(bodyH, R * .3, .75);
-    [-1, 1].forEach(function (sg) {
-      g.add(new T.LineSegments(new T.BufferGeometry().setFromPoints([
-        new T.Vector3(sg * R * .9, bodyH * .45, 0),
-        new T.Vector3(sg * R * .5, bodyH * .9, 0)]),
-        new T.LineBasicMaterial({ color: lineCol, transparent: true, opacity: .4 })));
-    });
-    /* 旁置灯帽：深灰金属，避免「粉色小柱像蛋糕」 */
-    var capMat = new T.MeshStandardMaterial({ color: 0x707a84, metalness: .7, roughness: .4 });
-    var cap = new T.Group();
-    var capBody = new T.Mesh(new T.CylinderGeometry(.85, .9, 1.1, 24), capMat);
-    capBody.position.y = .55; cap.add(capBody);
-    var capTop = new T.Mesh(new T.CylinderGeometry(.8, .8, .12, 24), capMat);
-    capTop.position.y = 1.15; cap.add(capTop);
-    var knob = new T.Mesh(new T.SphereGeometry(.28, 14, 10), capMat);
-    knob.position.y = 1.42; cap.add(knob);
-    cap.position.set(3.6, 0, .8); g.add(cap);
-    g.position.set(o.x || 0, 0, o.z || 0);
-    return g;
+    var lamp = window.ChemKit.create('lamp', { scale: 1.62 });
+    window.ChemKit.place(lamp, o.x || 0, o.z || 0);
+    return lamp;
   }
 
-  /* ══ 细玻璃管温度计（自建）══
-     共享 P.thermometer 用 2.0 宽的贴纸平板 + 半径 1.15 的大圆泡，
-     浅背景下读成「墙上贴了把尺子 + 杯里一个橙色灯泡」。这里改成：
-     细玻璃管 + 管内乳白窄刻度背板 + 细液柱 + 长圆形玻璃泡，全部在管内。 */
   function makeThermo(lo, hi, major, minor, opt) {
     opt = opt || {};
     var g = new T.Group(), H = opt.h || 12, R = .38;

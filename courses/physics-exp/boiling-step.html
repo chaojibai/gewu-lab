@@ -5832,70 +5832,15 @@ return K;
 
   /* 真实酒精灯（与温度计课同款）：玻璃灯体 + 灯芯管 + 棉芯 + 旁置金属灯帽。
      灯芯顶端 ≈ y=5，与现有 K.shaderFlame 的火焰底对齐；玻璃靠轮廓线定形。 */
+    /* 酒精灯：ChemKit 高模（skill 冻结样式：扁球灯体+灯芯座+旁置灯帽）。
+     原手搓灯体已移除，避免两套灯叠在一起；保持返回 Group 与调用方坐标契约 */
   function makeAlcoholLamp(o) {
     o = o || {};
-    var g = new T.Group();
-    var bodyH = 4.2, R = 2.2;
-    var glass = new T.MeshPhysicalMaterial({ color: 0xeef6fb, roughness: .06, metalness: 0,
-      transparent: true, opacity: .34, side: T.DoubleSide, depthWrite: false,
-      clearcoat: .8, clearcoatRoughness: .08, envMapIntensity: 1.4 });
-    var prof = [
-      [0, 0], [R * .72, 0], [R * .86, .18], [R * .98, .55], [R, 1.25],
-      [R * .96, 2.10], [R * .78, 2.85], [.62, 3.35], [.52, 3.75], [.52, bodyH]
-    ].map(function (p) { return new T.Vector2(p[0], p[1]); });
-    var body = new T.Mesh(new T.LatheGeometry(prof, 40), glass);
-    body.castShadow = false; body.renderOrder = 3; g.add(body);
-    /* 酒精液面：半瓶淡蓝液体 + 一片可见液面，玻璃瓶才不是「空心白球」 */
-    var alc = new T.Mesh(new T.CylinderGeometry(R * .80, R * .72, 1.9, 32),
-      new T.MeshStandardMaterial({ color: 0x86b7d0, roughness: .25,
-        transparent: true, opacity: .55, depthWrite: false }));
-    alc.position.y = 1.05; g.add(alc);
-    var alcTop = new T.Mesh(new T.CircleGeometry(R * .80, 32),
-      new T.MeshStandardMaterial({ color: 0xb9d8e8, roughness: .2,
-        transparent: true, opacity: .72, side: T.DoubleSide, depthWrite: false }));
-    alcTop.rotation.x = -Math.PI / 2; alcTop.position.y = 2.0; g.add(alcTop);
-    var collar = new T.Mesh(new T.CylinderGeometry(.55, .62, .8, 20),
-      new T.MeshStandardMaterial({ color: 0x9aa3ad, metalness: .85, roughness: .3, envMapIntensity: 1.1 }));
-    collar.position.y = bodyH + .3; g.add(collar);
-    var wick = new T.Mesh(new T.CylinderGeometry(.2, .22, .55, 12),
-      new T.MeshStandardMaterial({ color: 0x2b231c, roughness: .9 }));
-    wick.position.y = bodyH + .65; g.add(wick);
-    var lineCol = 0x3f6079;
-    function ring(y, rr, op) {
-      var pts = [], k;
-      for (k = 0; k <= 48; k++) {
-        var a = k / 48 * Math.PI * 2;
-        pts.push(new T.Vector3(Math.cos(a) * rr, y, Math.sin(a) * rr));
-      }
-      g.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(pts.slice(0, 48)),
-        new T.LineBasicMaterial({ color: lineCol, transparent: true, opacity: op })));
-    }
-    ring(.05, R * .72, .8);
-    ring(1.25, R, .55);
-    ring(3.75, .52, .85);
-    ring(bodyH, .52, .9);
-    /* 两侧母线：玻璃靠轮廓定形，浅墙前也读得出瓶身收肩 */
-    [-1, 1].forEach(function (sg) {
-      g.add(new T.Line(new T.BufferGeometry().setFromPoints([
-        new T.Vector3(sg * R, 1.25, 0), new T.Vector3(sg * R * .96, 2.10, 0),
-        new T.Vector3(sg * .62, 3.35, 0), new T.Vector3(sg * .52, bodyH, 0)]),
-        new T.LineBasicMaterial({ color: lineCol, transparent: true, opacity: .7 })));
-    });
-    var capMat = new T.MeshStandardMaterial({ color: 0x707a84, metalness: .7, roughness: .4 });
-    var cap = new T.Group();
-    var capBody = new T.Mesh(new T.CylinderGeometry(.85, .9, 1.1, 24), capMat);
-    capBody.position.y = .55; cap.add(capBody);
-    var capTop = new T.Mesh(new T.CylinderGeometry(.8, .8, .12, 24), capMat);
-    capTop.position.y = 1.15; cap.add(capTop);
-    var knob = new T.Mesh(new T.SphereGeometry(.28, 14, 10), capMat);
-    knob.position.y = 1.42; cap.add(knob);
-    cap.position.set(3.6, 0, .8); g.add(cap);
-    g.position.set(o.x || 0, 0, o.z || 0);
-    return g;
+    var lamp = window.ChemKit.create('lamp', { scale: 1.62 });
+    window.ChemKit.place(lamp, o.x || 0, o.z || 0);
+    return lamp;
   }
 
-  /* 温度-时间图像板：CanvasTexture 贴在场景里的竖板上，逐帧重绘 */
-  var graphCv = null, graphCtx = null, graphTex = null;
   function initGraph() {
     graphCv = document.createElement('canvas'); graphCv.width = 520; graphCv.height = 380;
     graphCtx = graphCv.getContext('2d');

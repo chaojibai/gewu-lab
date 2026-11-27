@@ -6614,12 +6614,11 @@ return K;
       K.bench(46, 30);
 
 
-      /* ---- 酒精灯：灯体＋灯内酒精＋灯颈＋灯芯＋火焰 ---- */
-      K.glassCyl({ r: 1.85, h: 3.3, x: 0, z: 0, y0: .06 });
-      var alc = K.liquidCyl({ r: 1.62, h: 1.9, x: 0, z: 0, y0: .2, color: 0x7fa8d8, opacity: .75 });
-      alc.material.transmission = 0;
-      K.cyl({ r: .55, h: .6, y0: 3.36, x: 0, z: 0, mat: K.M().glass });
-      K.cyl({ r: .13, h: .55, y0: 3.82, x: 0, z: 0, mat: new T.MeshStandardMaterial({ color: 0xefe3c8, roughness: .9 }) });
+      /* ---- 酒精灯：ChemKit 高模（skill 冻结样式：扁球灯体+灯芯座+旁置灯帽）----
+         原手搓灯体已移除，避免两套灯叠在一起；火焰位置保持不变 */
+      var ckLamp = window.ChemKit.create('lamp', { scale: 1.27 });
+      window.ChemKit.place(ckLamp, 0, 0);
+      K.scene().add(ckLamp);
       O.flameLamp = solidFlame({ x: 0, y: 4.18, z: 0, s: 1.25, tex: 'alcohol' });
 
       /* ---- 三脚架：三条腿 + 铁圈（托住石棉网） ---- */
